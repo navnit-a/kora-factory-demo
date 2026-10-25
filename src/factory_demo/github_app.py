@@ -1,7 +1,7 @@
 import html
 import json
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
 
@@ -70,11 +70,22 @@ def callback_code(path: str, expected_state: str) -> str:
     return code
 
 
-def setup_installation_id(path: str) -> str:
-    value = parse_qs(urlsplit(path).query).get("installation_id", [""])[0]
+def setup_installation_id(path: str, expected_state: str) -> str:
+    query = parse_qs(urlsplit(path).query)
+    if query.get("state", [""])[0] != expected_state:
+        raise ValueError("setup state does not match; install the App again from the script")
+    value = query.get("installation_id", [""])[0]
     if not value.isdigit():
         raise ValueError("GitHub sent no numeric installation_id; install the App again")
     return value
+
+
+def install_url(slug: str, state: str) -> str:
+    return f"https://github.com/apps/{slug}/installations/new?{urlencode({'state': state})}"
+
+
+def trusted_host(host: str | None, expected: str) -> bool:
+    return host == expected
 
 
 def with_env_values(text: str, values: dict[str, str]) -> str:

@@ -11,8 +11,10 @@ from factory_demo.github_app import (
     connection_manifest,
     convert,
     create_form,
+    install_url,
     manifest,
     setup_installation_id,
+    trusted_host,
     with_env_values,
 )
 
@@ -95,9 +97,29 @@ def test_callback_returns_the_code():
 
 
 def test_setup_reads_the_installation_id():
-    assert setup_installation_id("/setup?installation_id=987&setup_action=install") == "987"
+    path = "/setup?installation_id=987&setup_action=install&state=ours"
+    assert setup_installation_id(path, "ours") == "987"
     with pytest.raises(ValueError, match="installation_id"):
-        setup_installation_id("/setup?installation_id=abc")
+        setup_installation_id("/setup?installation_id=abc&state=ours", "ours")
+
+
+def test_setup_rejects_foreign_or_missing_state():
+    with pytest.raises(ValueError, match="state does not match"):
+        setup_installation_id("/setup?installation_id=987&state=theirs", "ours")
+    with pytest.raises(ValueError, match="state does not match"):
+        setup_installation_id("/setup?installation_id=987", "ours")
+
+
+def test_install_url_carries_the_state():
+    assert install_url("kora-factory", "s 1") == (
+        "https://github.com/apps/kora-factory/installations/new?state=s+1"
+    )
+
+
+def test_trusted_host_is_only_the_loopback_address():
+    assert trusted_host("127.0.0.1:8765", "127.0.0.1:8765")
+    assert not trusted_host("evil.example:8765", "127.0.0.1:8765")
+    assert not trusted_host(None, "127.0.0.1:8765")
 
 
 def test_with_env_values_replaces_and_appends():

@@ -14,8 +14,10 @@ from factory_demo.github_app import (  # noqa: E402
     callback_code,
     convert,
     create_form,
+    install_url,
     manifest,
     setup_installation_id,
+    trusted_host,
     with_env_values,
 )
 
@@ -26,6 +28,7 @@ REPO_URL = "https://github.com/navnit-a/platformcon-day-planner"
 KEY_FILE = ROOT / "deploy/generated/github-app.pem"
 ENV_FILE = ROOT / ".env"
 STATE = secrets.token_urlsafe(24)
+CREATED: dict[str, str] = {}
 
 
 def write_env(values: dict[str, str]) -> None:
@@ -41,6 +44,9 @@ def write_key(pem: str) -> None:
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
+        if not trusted_host(self.headers.get("Host"), f"{HOST}:{PORT}"):
+            self.send_error(403)
+            return
         try:
             if self.path == "/":
                 body = manifest(APP_NAME, f"{BASE}/callback", f"{BASE}/setup", REPO_URL)
@@ -50,10 +56,13 @@ class Handler(BaseHTTPRequestHandler):
                     app = convert(http, callback_code(self.path, STATE))
                 write_key(app.pem)
                 write_env({"GITHUB_APP_ID": app.app_id, "GITHUB_APP_SLUG": app.slug})
+                CREATED["slug"] = app.slug
                 print(f"created GitHub App {app.slug} (id {app.app_id}); key in {KEY_FILE}")
-                return self._redirect(f"https://github.com/apps/{app.slug}/installations/new")
+                return self._redirect(install_url(app.slug, STATE))
             if self.path.startswith("/setup"):
-                installation = setup_installation_id(self.path)
+                if "slug" not in CREATED:
+                    raise ValueError("create the App first; setup is only accepted after it")
+                installation = setup_installation_id(self.path, STATE)
                 write_env({"GITHUB_APP_INSTALLATION_ID": installation})
                 print(f"installed, installation id {installation}")
                 self._page("<p>Installed. You can close this tab.</p>")

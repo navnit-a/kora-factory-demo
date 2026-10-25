@@ -22,7 +22,15 @@ LANE_LOOK: dict[str, LaneLook] = {
 }
 ACTOR_LABELS: dict[str, str | None] = {lane.name: lane.actor for lane in LANES}
 ACTOR_LABEL_NAMES = frozenset(actor for actor in ACTOR_LABELS.values() if actor)
-LABELS: dict[str, str | None] = {
+ACTOR_COLOURS: dict[str, str] = {
+    "💡 Product owner": "sky_dark",
+    "📋 Delivery lead": "yellow_dark",
+    "🤖 Senior developer": "purple_dark",
+    "🔍 Code reviewer": "orange_dark",
+    "🧪 Tester": "lime_dark",
+    "🙋 Needs a human": "red_dark",
+}
+LABELS: dict[str, str] = {
     "Idea": "sky",
     "Story": "blue",
     "Bug": "red",
@@ -32,7 +40,7 @@ LABELS: dict[str, str | None] = {
     "Shipped": "green",
     "Proposed via Telegram": "pink",
     "Fixture": "black",
-    **dict.fromkeys(actor for actor in ACTOR_LABELS.values() if actor),
+    **ACTOR_COLOURS,
 }
 LabelName = Literal[
     "Idea",

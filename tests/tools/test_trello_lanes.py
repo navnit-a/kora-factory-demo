@@ -128,12 +128,12 @@ def test_missing_list_error_names_the_lists_the_board_really_has():
 
 
 @respx.mock
-def test_colourless_label_is_created_without_colour():
+def test_actor_label_is_created_with_its_lane_colour():
     routes = mock_look(CARD)
     assert run(client().ensure_label("🤖 Senior developer")) == "lab-new"
     assert form(routes["new_label"].calls[0].request) == {
         "name": "🤖 Senior developer",
-        "color": "null",
+        "color": "purple_dark",
         "idBoard": "board",
     }
 
@@ -149,7 +149,7 @@ def test_move_swaps_actor_labels():
             {"id": "lab-dev", "name": "🤖 Senior developer"},
             {"id": "lab-high", "name": "High severity"},
         ],
-        board_labels=[{"id": "lab-cr", "name": "🔍 Code reviewer", "color": None}],
+        board_labels=[{"id": "lab-cr", "name": "🔍 Code reviewer", "color": "orange_dark"}],
     )
     comment = comment_route()
     dev = delete_route(f"/cards/{CARD}/idLabels/lab-dev")

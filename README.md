@@ -144,9 +144,10 @@ Labels say what a card is and what it needs. Idea (sky) marks a card in Ideas; S
 label and a star sticker for urgent work. Depends on (orange) means a named prerequisite is not Done
 yet. Shipped (green) is added when a card reaches Done. Proposed via Telegram (pink) marks an idea
 that came through the idea door; the idea door adds it when the card is created. Fixture (black)
-marks a card an evaluation made. The six actor labels, with no colour, say who has the card:
-💡 Product owner, 📋 Delivery lead, 🤖 Senior developer, 🔍 Code reviewer, 🧪 Tester and
-🙋 Needs a human. The product owner writes the criteria into an Acceptance criteria checklist and
+marks a card an evaluation made. The six actor labels say who has the card, each in the dark shade
+of its lane's cover so Trello shows it on the card front: 💡 Product owner (sky_dark), 📋 Delivery
+lead (yellow_dark), 🤖 Senior developer (purple_dark), 🔍 Code reviewer (orange_dark), 🧪 Tester
+(lime_dark) and 🙋 Needs a human (red_dark). The product owner writes the criteria into an Acceptance criteria checklist and
 the tester ticks them.
 
 ## Working agreements

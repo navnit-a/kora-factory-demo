@@ -23,12 +23,12 @@ PALETTE_PLAN = (
     ("rename", "Shipped", "green"),
     ("create", "Proposed via Telegram", "pink"),
     ("create", "Fixture", "black"),
-    ("create", "💡 Product owner", None),
-    ("create", "📋 Delivery lead", None),
-    ("create", "🤖 Senior developer", None),
-    ("create", "🔍 Code reviewer", None),
-    ("create", "🧪 Tester", None),
-    ("create", "🙋 Needs a human", None),
+    ("create", "💡 Product owner", "sky_dark"),
+    ("create", "📋 Delivery lead", "yellow_dark"),
+    ("create", "🤖 Senior developer", "purple_dark"),
+    ("create", "🔍 Code reviewer", "orange_dark"),
+    ("create", "🧪 Tester", "lime_dark"),
+    ("create", "🙋 Needs a human", "red_dark"),
     ("rename", "Ready", "yellow"),
 )
 BOARD_PLAN = tuple(
@@ -190,14 +190,14 @@ def test_report_lines_name_each_label_action_and_the_counts():
     assert report_lines(quiet, dry_run=False)[0] == "Cards whose colour label becomes: none"
 
 
-def test_report_lines_name_renamed_lanes_and_colourless_labels():
+def test_report_lines_name_renamed_lanes_and_label_colours():
     report = DressReport(
-        (("create", "💡 Product owner", None),), 0, 0, (), (("Ideas", display_name("Ideas")),)
+        (("create", "💡 Product owner", "sky_dark"),), 0, 0, (), (("Ideas", display_name("Ideas")),)
     )
     lines = report_lines(report, dry_run=False)
     assert lines[:2] == (
         "rename lane Ideas → 💡 Ideas · product owner shapes",
-        "create label 💡 Product owner (no colour)",
+        "create label 💡 Product owner (sky_dark)",
     )
     assert report.lists_renamed == 1
 
@@ -273,8 +273,8 @@ async def test_dry_run_renames_no_lane():
 
 
 ACTORS = {
-    "l-dev": {"name": "🤖 Senior developer", "color": None},
-    "l-tester": {"name": "🧪 Tester", "color": None},
+    "l-dev": {"name": "🤖 Senior developer", "color": "purple_dark"},
+    "l-tester": {"name": "🧪 Tester", "color": "lime_dark"},
 }
 
 

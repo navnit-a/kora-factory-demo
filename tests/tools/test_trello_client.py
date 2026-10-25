@@ -272,7 +272,11 @@ def test_move_still_happens_when_the_look_fails():
     assert moved["look_applied"] is False
     assert "HTTP 503" in moved["detail"] and "HTTP 500" in moved["detail"]
     assert "token" not in moved["detail"]
-    assert form(routes["new_label"].calls[0].request)["name"] == "🔍 Code reviewer"
+    assert form(routes["new_label"].calls[0].request) == {
+        "name": "🔍 Code reviewer",
+        "color": "orange_dark",
+        "idBoard": "board",
+    }
     assert form(routes["add_sticker"].calls[0].request)["image"] == "rocketship"
     shipped = run(client().move_with_reason(CARD, "Done", "Tests pass"))
     assert shipped["list"] == "Done" and shipped["look_applied"] is False

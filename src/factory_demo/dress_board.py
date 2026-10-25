@@ -28,9 +28,8 @@ COLOUR_NAMES = dict(blue="Story", green=SHIPPED, orange=DEPENDS_ON, purple="Spik
 RENAMES = {**COLOUR_NAMES, READY_COLOUR: READY}
 RENAME = "rename"
 RELABEL_HEADER = "Cards whose colour label becomes:"
-NO_COLOUR = "no colour"
 
-LabelAction = tuple[str, str, str | None]
+LabelAction = tuple[str, str, str]
 LaneRename = tuple[str, str, str]
 
 
@@ -47,7 +46,7 @@ class DressReport:
         return len(self.renamed_lanes)
 
 
-def _label_action(name: str, colour: str | None, named: set[str], unnamed: set[str]) -> LabelAction:
+def _label_action(name: str, colour: str, named: set[str], unnamed: set[str]) -> LabelAction:
     if name in named:
         return ("keep", name, colour)
     if RENAMES.get(colour) == name and colour in unnamed:
@@ -162,9 +161,7 @@ def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
 
 def report_lines(report: DressReport, dry_run: bool) -> tuple[str, ...]:
     lanes = tuple(f"{RENAME} lane {old} → {new}" for old, new in report.renamed_lanes)
-    actions = tuple(
-        f"{action} label {name} ({colour or NO_COLOUR})" for action, name, colour in report.labels
-    )
+    actions = tuple(f"{action} label {name} ({colour})" for action, name, colour in report.labels)
     counts = (
         f"{report.cards_dressed} card(s) dressed",
         f"{report.checklists_added} checklist(s) added",

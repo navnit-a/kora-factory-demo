@@ -24,12 +24,12 @@ from factory_tools.trello.look import (
 )
 
 ACTORS = {
-    "💡 Product owner": None,
-    "📋 Delivery lead": None,
-    "🤖 Senior developer": None,
-    "🔍 Code reviewer": None,
-    "🧪 Tester": None,
-    "🙋 Needs a human": None,
+    "💡 Product owner": "sky_dark",
+    "📋 Delivery lead": "yellow_dark",
+    "🤖 Senior developer": "purple_dark",
+    "🔍 Code reviewer": "orange_dark",
+    "🧪 Tester": "lime_dark",
+    "🙋 Needs a human": "red_dark",
 }
 
 
@@ -121,7 +121,11 @@ def test_actor_labels_cover_every_lane():
     }
     assert set(ACTOR_LABELS) == set(BOARD_LISTS)
     assert frozenset(ACTORS) == ACTOR_LABEL_NAMES
-    assert all(LABELS[name] is None for name in ACTOR_LABEL_NAMES)
+
+
+def test_actor_labels_are_coloured_so_trello_shows_them():
+    assert {name: LABELS[name] for name in ACTOR_LABEL_NAMES} == ACTORS
+    assert all(LABELS[name] for name in ACTOR_LABEL_NAMES)
 
 
 def test_move_swaps_actor_labels():

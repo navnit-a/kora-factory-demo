@@ -63,3 +63,61 @@ def test_each_tool_server_gets_only_the_keys_it_uses(tmp_path):
         "TELEGRAM_CHANNEL",
     }
     assert docs["tools-transport"]["stringData"] == {"TFNSW_API_KEY": "v-TFNSW_API_KEY"}
+
+
+def _env_file(tmp_path, extra: str = "") -> Path:
+    env = tmp_path / ".env"
+    env.write_text(
+        "AILABS_FOUNDRY_API_KEY=a\nAILABS_FOUNDRY_RESOURCE=r1\n"
+        + "".join(f"{k}=x\n" for k in TOOL_KEYS)
+        + extra
+    )
+    return env
+
+
+def _render(tmp_path, env: Path, key: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            sys.executable,
+            "scripts/render-secrets.py",
+            "--env",
+            str(env),
+            "--out",
+            str(tmp_path / "secrets.yaml"),
+            "--github-key",
+            str(key),
+            "--connection-out",
+            str(tmp_path / "github-connection.yaml"),
+        ],
+        check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_github_key_rendered_from_file_when_present(tmp_path):
+    import yaml
+
+    key = tmp_path / "github-app.pem"
+    key.write_text("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n")
+    env = _env_file(tmp_path, "GITHUB_APP_ID=42\nGITHUB_APP_INSTALLATION_ID=987\n")
+    _render(tmp_path, env, key)
+    docs = list(yaml.safe_load_all((tmp_path / "secrets.yaml").read_text()))
+    github = next(d for d in docs if d["metadata"]["name"] == "github-app-key")
+    assert github["metadata"]["namespace"] == "kora-tenant-example"
+    assert github["stringData"]["key.pem"] == key.read_text()
+    connection = yaml.safe_load((tmp_path / "github-connection.yaml").read_text())
+    assert connection["spec"]["config"] == {
+        "app_id": "42",
+        "installation_id": 987,
+        "owner": "navnit-a",
+    }
+
+
+def test_github_key_skipped_when_absent(tmp_path):
+    env = _env_file(tmp_path)
+    result = _render(tmp_path, env, tmp_path / "missing.pem")
+    assert (tmp_path / "secrets.yaml").read_text().count("kind: Secret") == 4
+    assert "GitHub App not connected yet" in result.stdout
+    assert not (tmp_path / "github-connection.yaml").exists()

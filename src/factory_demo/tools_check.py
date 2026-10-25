@@ -7,15 +7,28 @@ TOOLS_BY_SERVER = {
         "trello_comment_card",
         "trello_create_card",
         "trello_update_card_description",
+        "trello_add_label",
+        "trello_add_checklist",
+        "trello_check_item",
+        "trello_set_priority",
+        "trello_write_watch_log",
+        "trello_mark_diagnosed",
     ),
     "telegram": ("telegram_send_message",),
     "transport": ("transport_sydney_trains_status",),
     "places": ("places_lunch_nearby",),
 }
+PLATFORM_TOOLS = {
+    "kora": ("runs.list", "runs.get", "runs.events", "triggers.get", "triggers.deliveries.list"),
+}
 
 
 def expected_tool_names() -> set[str]:
     return {tool for tools in TOOLS_BY_SERVER.values() for tool in tools}
+
+
+def reachable_line() -> str:
+    return f"ok   all {len(expected_tool_names())} tools reachable"
 
 
 def missing_tools(listed: dict[str, list[str]]) -> list[str]:

@@ -19,5 +19,5 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff format --check src tests scripts
       - run: uv run ruff check src tests scripts
-      - run: uv run pytest -q --cov=factory_demo --cov=factory_tools --cov-fail-under=80
+      - run: uv run pytest -q --cov=factory_demo --cov=factory_tools --cov=factory_bridge --cov-fail-under=80
       - run: for f in scripts/*.sh; do bash -n "$f"; done

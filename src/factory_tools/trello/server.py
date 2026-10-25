@@ -8,6 +8,15 @@ from pydantic import Field
 
 from factory_tools.lists import BOARD_LISTS, ListName
 from factory_tools.trello.client import TrelloClient
+from factory_tools.trello.look import (
+    ACTOR_LABEL_NAMES,
+    AGENT_OPS_LABEL,
+    AGENT_OPS_PREFIX,
+    CHECKLIST_NAME,
+    LABELS,
+    WATCH_LOG_TITLE,
+    LabelName,
+)
 
 TRELLO_TEXT_LIMIT = 16384
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
@@ -15,6 +24,17 @@ WRITE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
 )
 LIST_DESCRIPTION = "One of the board's lists: " + ", ".join(BOARD_LISTS) + "."
+LABEL_DESCRIPTION = (
+    "One label of the board language: "
+    + ", ".join(name for name in LABELS if name not in ACTOR_LABEL_NAMES)
+    + ". The actor labels ("
+    + ", ".join(name for name in LABELS if name in ACTOR_LABEL_NAMES)
+    + ") are set by moves; never add one by hand. "
+    + AGENT_OPS_LABEL
+    + " comes only from trello_mark_diagnosed."
+)
+DIAGNOSIS_LIMIT = 2000
+Criterion = Annotated[str, Field(min_length=3, max_length=200)]
 CardId = Annotated[
     str, Field(description="The Trello card id from trello_list_cards or trello_get_card.")
 ]
@@ -54,8 +74,9 @@ async def trello_list_cards(
 
 @mcp.tool(
     annotations=READ,
-    description="Read one card in full: title, list, description and its last five comments, "
-    "newest first.",
+    description="Read one card in full: title, list, description, its last five comments "
+    f"newest first, its labels by name and its '{CHECKLIST_NAME}' checklist items with each "
+    "item's state (complete or incomplete; empty when the card has none).",
 )
 async def trello_get_card(card_id: CardId) -> dict:
     return await with_trello(lambda trello: trello.card(card_id))
@@ -64,12 +85,15 @@ async def trello_get_card(card_id: CardId) -> dict:
 @mcp.tool(
     annotations=WRITE,
     description="Move a card to another list. The target list is checked first, then the reason "
-    "is posted as a comment, then the card moves.",
+    "is posted as a comment signed by the agent that moves the card (the mover, then the "
+    "destination lane), then the card moves and its actor label is set to the destination lane's.",
 )
 async def trello_move_card(
     card_id: CardId,
     to_list: Annotated[ListName, Field(description=LIST_DESCRIPTION)],
-    reason: Annotated[str, text_field("Why the card moves; posted as a comment.", 3)],
+    reason: Annotated[
+        str, text_field("Why the card moves; posted as a comment after the signature.", 3)
+    ],
 ) -> dict:
     return await with_trello(lambda trello: trello.move_with_reason(card_id, to_list, reason))
 
@@ -103,3 +127,95 @@ async def trello_update_card_description(
     text: Annotated[str, text_field("The new description; replaces the old one entirely.", 0)],
 ) -> dict:
     return await with_trello(lambda trello: trello.set_description(card_id, text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Add a named label to a card; the board's colour for it is applied. Used by the "
+    "product owner (type, Proposed via Telegram) and the delivery lead and support "
+    "(Depends on). Moves and creates already set the type, Shipped and the lane look.",
+)
+async def trello_add_label(
+    card_id: CardId,
+    name: Annotated[LabelName, Field(description=LABEL_DESCRIPTION)],
+) -> dict:
+    return await with_trello(lambda trello: trello.add_label(card_id, name))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Give a card its '{CHECKLIST_NAME}' checklist, one item per criterion, in order. "
+    "Used by the product owner when a story is written; replaces the card's existing criteria.",
+)
+async def trello_add_checklist(
+    card_id: CardId,
+    items: Annotated[
+        list[Criterion],
+        Field(
+            min_length=3,
+            max_length=8,
+            description="Three to eight acceptance criteria, each 3 to 200 characters.",
+        ),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.add_checklist(card_id, tuple(items)))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Tick one item of a card's '{CHECKLIST_NAME}' checklist once it is verified. "
+    "Used by the tester; the exact text or its first words pick the item.",
+)
+async def trello_check_item(
+    card_id: CardId,
+    text: Annotated[
+        str,
+        Field(min_length=3, max_length=200, description="The criterion's text or first words."),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.check_item(card_id, text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Mark a card high priority (a star sticker and the High severity label) or clear "
+    "it. Used by the delivery lead and support for urgent work.",
+)
+async def trello_set_priority(
+    card_id: CardId,
+    high: Annotated[bool, Field(description="True to mark high priority, False to clear it.")],
+) -> dict:
+    return await with_trello(lambda trello: trello.set_priority(card_id, high))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Rewrite the '{WATCH_LOG_TITLE}' card in the Agent ops lane and post its first "
+    "line as a comment. Used by agent ops; it takes no card id, finds the one watch log itself and "
+    "refuses when it is missing or there is more than one.",
+)
+async def trello_write_watch_log(
+    text: Annotated[
+        str, text_field("The whole new watch log; replaces its description. First line first.")
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.write_watch_log(text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Mark a card in Blocked as diagnosed: post the note as a comment and add the "
+    f"{AGENT_OPS_LABEL} label. Used by agent ops; refuses a card in any other lane.",
+)
+async def trello_mark_diagnosed(
+    card_id: CardId,
+    note: Annotated[
+        str,
+        Field(
+            min_length=3,
+            max_length=DIAGNOSIS_LIMIT,
+            description=f"The diagnosis, starting '{AGENT_OPS_PREFIX}'; posted as a comment.",
+        ),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.mark_diagnosed(card_id, note))

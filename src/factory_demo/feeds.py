@@ -1,0 +1,158 @@
+import json
+
+from factory_demo.practices import REPO_PATH
+
+DATA_DIR = "public/data/"
+TRAINS_PATH = f"{DATA_DIR}trains.json"
+LUNCH_PATH = f"{DATA_DIR}lunch.json"
+TRAINS_BRANCH = "agent-trains"
+LUNCH_BRANCH = "agent-lunch"
+DATA_BRANCHES = (TRAINS_BRANCH, LUNCH_BRANCH)
+PRODUCT_REPO = REPO_PATH.removeprefix("repos/")
+DATA_FILES = ((TRAINS_BRANCH, TRAINS_PATH), (LUNCH_BRANCH, LUNCH_PATH))
+DATA_PR_RULE = f"""Before the card work, in a sandbox, merge data pull requests. For each
+`<head>` with its one `<file>`, {" and ".join(f"`{b}` with `{f}`" for b, f in DATA_FILES)}:
+`gh pr list --repo {PRODUCT_REPO} --head <head> --state open
+--json number,baseRefName,headRefOid,isCrossRepository`. Merge one only when `baseRefName` is
+`main`, `isCrossRepository` is false,
+`gh pr view <number> --repo {PRODUCT_REPO} --json files,changedFiles,mergeable` shows
+`changedFiles` 1 and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on
+its `headRefOid` and `mergeable` is not `CONFLICTING`: step 6's merge with `sha=<headRefOid>`,
+confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
+Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""
+
+FEED_FACTS = f"""Live data: `{TRAINS_PATH}` (`updated`, `status` `normal` or
+`disruptions`, `lines` (empty when `normal`) of `line` and `summary`, `more` (an integer count
+of further updates), `attribution`) and `{LUNCH_PATH}`
+(`updated`, `place`, exactly three `picks` of `name`, `kind`, `cuisine`, `distance_m`, `street`,
+`lat`, `lon`, `reason`, then `attribution`), written only by the trains and lunch agents through
+their own pull requests; never edit them by hand. A section reads its file at runtime with
+``fetch(`${{import.meta.env.BASE_URL}}data/<file>`, {{ cache: "no-store" }})``, validates the
+shape, shows `updated` in Sydney time (24-hour) and the `attribution` line, and when the file is
+missing or fails to parse shows a calm "not available yet" state, never a broken page.
+Venue: Sydney Masonic Centre, 66 Goulburn Street, lat -33.8781, lon 151.2090. Nearest stations:
+Museum, 3 min walk, lines T2, T3, T8; Central, 9 min walk, lines T1, T2, T3, T4, T8, T9. A map
+card may add `leaflet` 1.9.4 (exact version; `@types/leaflet` 1.9.22), tiles
+`https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png` and "Map data © OpenStreetMap contributors"
+visible under the map; no Google Maps, no API keys.
+Render place names, which come from OpenStreetMap through an agent, only as text, never as HTML,
+including Leaflet tooltips; scroll-wheel zoom off on a phone page."""
+
+TRAINS_EXAMPLE = json.dumps(
+    {
+        "updated": "2026-10-27T07:45:00+11:00",
+        "status": "disruptions",
+        "lines": [
+            {
+                "line": "T1 North Shore & Western Line",
+                "summary": "Trains run less often between Hornsby and Berowra.",
+            }
+        ],
+        "more": 2,
+        "attribution": "Data: Transport for NSW Open Data, CC BY 4.0",
+    },
+    indent=2,
+)
+
+LUNCH_EXAMPLE = json.dumps(
+    {
+        "updated": "2026-10-27T11:30:00+11:00",
+        "place": "Sydney Masonic Centre",
+        "picks": [
+            {
+                "name": "Example Noodle Bar",
+                "kind": "restaurant",
+                "cuisine": "vietnamese",
+                "distance_m": 120,
+                "street": "Example Street",
+                "lat": -33.8781,
+                "lon": 151.2043,
+                "reason": "closest hot meal",
+            },
+            {
+                "name": "Example Cafe",
+                "kind": "cafe",
+                "cuisine": "coffee_shop",
+                "distance_m": 210,
+                "street": "Example Lane",
+                "lat": -33.8769,
+                "lon": 151.2055,
+                "reason": "quick coffee and a sandwich",
+            },
+            {
+                "name": "Example Thai",
+                "kind": "restaurant",
+                "cuisine": "thai",
+                "distance_m": 340,
+                "street": "Example Road",
+                "lat": -33.8790,
+                "lon": 151.2031,
+                "reason": "a sit-down lunch",
+            },
+        ],
+        "attribution": "Data: OpenStreetMap contributors, ODbL",
+    },
+    indent=2,
+)
+
+TRAINS_SHAPE = f"""`{TRAINS_PATH}` is one JSON object with exactly these fields:
+- `updated`: when the data is from, ISO 8601 with its offset.
+- `status`: `normal` or `disruptions`, as the tool returned it.
+- `lines`: one object per disruption, in the tool's order, each with `line` (the line's name) and
+  `summary` (the disruption in plain words); an empty list when the status is `normal`.
+- `more`: an integer, the further updates the tool counted.
+- `attribution`: the tool's attribution line, exactly as it returned it.
+The example's values are illustrative; write the tool's.
+```json
+{TRAINS_EXAMPLE}
+```"""
+
+LUNCH_SHAPE = f"""`{LUNCH_PATH}` is one JSON object with exactly these fields:
+- `updated`: when the data is from, ISO 8601 with its offset.
+- `place`: the place name from your run message.
+- `picks`: exactly three objects, the three you chose, each with `name`, `kind`, `cuisine`,
+  `distance_m` (an integer), `street`, `lat` and `lon` (numbers) copied from the tool, and
+  `reason`, a short phrase on why it is a good pick.
+- `attribution`: the tool's attribution line, exactly as it returned it.
+The example's values are illustrative; write the tool's.
+```json
+{LUNCH_EXAMPLE}
+```"""
+
+
+def data_pr_title(agent: str, day: str) -> str:
+    return f"data: {agent} {day}"
+
+
+def publish_steps(branch: str, path: str, title: str, prefix: str = "") -> str:
+    steps = (
+        f"""Read the tip of `main` with
+`gh api {REPO_PATH}/git/ref/heads/main --jq .object.sha`; call it `<main sha>`.""",
+        f"""Reset `{branch}` to it with
+`gh api -X PATCH {REPO_PATH}/git/refs/heads/{branch} -f sha='<main sha>' -F force=true`.
+When that returns 422 'Reference does not exist' or 404 the branch does not exist yet: create
+it with `gh api -X POST {REPO_PATH}/git/refs -f ref=refs/heads/{branch} -f sha='<main sha>'`.""",
+        f"""Read the file's current sha with
+`gh api '{REPO_PATH}/contents/{path}?ref={branch}' --jq .sha`; call it `<file sha>`. A 404
+means the file does not exist yet and there is no `<file sha>`.""",
+        f"""Write the JSON to a local file through a heredoc with a quoted delimiter,
+`cat > data.json <<'JSON'`, and check it with `python3 -m json.tool data.json > /dev/null`;
+if it fails, stop: do not upload, and reply with the error. Otherwise upload it with
+`gh api -X PUT {REPO_PATH}/contents/{path} -f branch={branch} -f message='{title}'
+-f content="$(base64 -w0 < data.json)" -f sha='<file sha>'`, leaving out `-f sha` when
+step {prefix}3 found no file.""",
+        f"""Look for an open pull request with
+`gh pr list --repo {PRODUCT_REPO} --head {branch} --state open --json number`. When
+the list is empty, open one with
+`gh api -X POST {REPO_PATH}/pulls -f base=main -f head={branch} -f title='{title}'
+-f body='Data refresh by the {branch} agent. Only {path} changes.'`.""",
+        """The `updated` field is the tool's `as_of` when it has one, otherwise this run's time in
+UTC, written with its offset. Values from tool output never go into a shell command unquoted:
+single-quote every sha and every value copied from a tool, and write the JSON through the
+heredoc file, never inline.""",
+    )
+    return "\n".join(numbered(f"{prefix}{n}. ", step) for n, step in enumerate(steps, 1))
+
+
+def numbered(label: str, step: str) -> str:
+    return label + step.replace("\n", "\n" + " " * len(label))

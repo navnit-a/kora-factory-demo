@@ -6,7 +6,14 @@ import httpx
 from fastmcp.exceptions import ToolError
 
 from factory_tools.http import json_or_error, request, truncate
-from factory_tools.lists import lists_sentence
+from factory_tools.trello import (
+    agent_ops_client,
+    card_view,
+    checklist_client,
+    lists_client,
+    look_client,
+)
+from factory_tools.trello.look import labels_on_create, signed_reason
 
 API = "https://api.trello.com/1"
 COMMENT_TAIL = 5
@@ -24,6 +31,25 @@ class TrelloClient:
     board_id: str
     http: httpx.AsyncClient
 
+    set_cover = look_client.set_cover
+    stickers = look_client.stickers
+    set_lane_sticker = look_client.set_lane_sticker
+    set_star = look_client.set_star
+    board_labels = look_client.board_labels
+    ensure_label = look_client.ensure_label
+    label_records = look_client.label_records
+    rename_label = look_client.rename_label
+    card_look = look_client.card_look
+    card_labels = look_client.card_labels
+    add_label = look_client.add_label
+    remove_label = look_client.remove_label
+    set_priority = look_client.set_priority
+    add_checklist = checklist_client.add_checklist
+    checklist_items = checklist_client.checklist_items
+    check_item = checklist_client.check_item
+    write_watch_log = agent_ops_client.write_watch_log
+    mark_diagnosed = agent_ops_client.mark_diagnosed
+
     @classmethod
     def from_env(cls, http: httpx.AsyncClient) -> "TrelloClient":
         values = {name: os.environ.get(name, "") for name in ENV_KEYS}
@@ -35,11 +61,21 @@ class TrelloClient:
         )
 
     async def list_ids(self) -> dict[str, str]:
-        lists = await self._read(f"/boards/{self.board_id}/lists", {"fields": "name"})
-        return {item["name"]: item["id"] for item in lists}
+        return lists_client.canonical_ids(await self.board_lists())
+
+    async def board_lists(self) -> list[dict]:
+        return await self._read(f"/boards/{self.board_id}/lists", {"fields": "name"})
+
+    async def rename_list(self, list_id: str, name: str) -> None:
+        await self._write("PUT", f"/lists/{list_id}", {"name": name})
+
+    async def create_list(self, name: str, pos: str = "bottom") -> dict:
+        query = {"name": name, "idBoard": self.board_id, "pos": pos}
+        reply = await self._send_write("POST", "/lists", query)
+        return {"id": look_client.required_id(reply, "list"), "name": name}
 
     async def cards_in(self, list_name: str, limit: int) -> list[dict]:
-        list_id = _list_id(await self.list_ids(), list_name)
+        list_id = lists_client.list_id(await self.board_lists(), list_name)
         cards = await self._read(
             f"/lists/{list_id}/cards", {"fields": CARD_FIELDS, "limit": str(limit)}
         )
@@ -59,20 +95,31 @@ class TrelloClient:
             **_summary(card, names.get(card.get("idList"), "")),
             "description": truncate(card.get("desc", "")),
             "comments": comments,
+            **await card_view.labels_and_checklist(self, card_id),
         }
 
     async def move(self, card_id: str, to_list: str) -> dict:
         await self._board_card(card_id, "idBoard")
-        list_id = _list_id(await self.list_ids(), to_list)
+        list_id = lists_client.list_id(await self.board_lists(), to_list)
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
         return {"id": card_id, "list": to_list}
 
     async def move_with_reason(self, card_id: str, to_list: str, reason: str) -> dict:
-        await self._board_card(card_id, "idBoard")
-        list_id = _list_id(await self.list_ids(), to_list)
-        await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": reason})
+        card = await self._board_card(card_id, "idBoard,idList")
+        lists = await self.board_lists()
+        list_id = lists_client.list_id(lists, to_list)
+        from_list = lists_client.lane_of(lists, card.get("idList"))
+        signed = signed_reason(from_list, to_list, reason)
+        await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": signed})
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
-        return {"id": card_id, "list": to_list, "comment_posted": True}
+        look = await self.apply_look(card_id, to_list, reason)
+        return {"id": card_id, "list": to_list, "comment_posted": True, **look}
+
+    async def apply_look(
+        self, card_id: str, to_list: str, reason: str, extra_labels: tuple[str, ...] = ()
+    ) -> dict:
+        failures = await look_client.dress(self, card_id, to_list, reason, extra_labels)
+        return {"look_applied": not failures, "detail": "; ".join(failures)}
 
     async def comment(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")
@@ -80,23 +127,35 @@ class TrelloClient:
         return {"id": card_id, "comment_id": body.get("id", "")}
 
     async def create(self, list_name: str, title: str, description: str) -> dict:
-        list_id = _list_id(await self.list_ids(), list_name)
+        list_id = lists_client.list_id(await self.board_lists(), list_name)
         body = await self._write(
             "POST", "/cards", {"idList": list_id, "name": title, "desc": description}
         )
-        return {"id": body.get("id", ""), "url": body.get("shortUrl", ""), "list": list_name}
+        card_id = body.get("id", "")
+        labels = labels_on_create(title, list_name)
+        look = await self.apply_look(card_id, list_name, "", labels)
+        created = {"id": card_id, "url": body.get("shortUrl", ""), "list": list_name}
+        return {**created, "label": labels[0], **look}
 
     async def set_description(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")
         await self._write("PUT", f"/cards/{card_id}", {"desc": text})
         return {"id": card_id, "description_updated": True}
 
-    async def _board_card(self, card_id: str, fields: str) -> dict:
+    async def archive(self, card_id: str) -> dict:
+        await self._board_card(card_id, "idBoard")
+        await self._write("PUT", f"/cards/{card_id}", {"closed": "true"})
+        return {"id": card_id, "archived": True}
+
+    def _checked_id(self, card_id: str) -> str:
         if not CARD_ID.match(card_id):
             raise ToolError(
                 f"'{card_id}' is not a Trello card id; use an id from trello_list_cards."
             )
-        card = await self._read(f"/cards/{card_id}", {"fields": fields})
+        return card_id
+
+    async def _board_card(self, card_id: str, fields: str) -> dict:
+        card = await self._read(f"/cards/{self._checked_id(card_id)}", {"fields": fields})
         if card.get("idBoard") != self.board_id:
             raise ToolError(
                 f"Card {card_id} is not on the factory board; only its cards can be used."
@@ -110,24 +169,23 @@ class TrelloClient:
         return json_or_error(response, "Trello", READ_HINT)
 
     async def _write(self, method: str, path: str, fields: dict) -> dict:
+        return await self._send_write(method, path, data=fields)
+
+    async def _write_json(self, method: str, path: str, payload: dict) -> dict:
+        return await self._send_write(method, path, json=payload)
+
+    async def _send_write(
+        self, method: str, path: str, query: dict[str, str] | None = None, **body: dict
+    ) -> dict:
+        params = {**(query or {}), **self._auth()}
         response = await request(
-            self.http, "Trello", method, API + path, WRITE_HINT, params=self._auth(), data=fields
+            self.http, "Trello", method, API + path, WRITE_HINT, params=params, **body
         )
-        body = json_or_error(response, "Trello", WRITE_HINT)
-        return body if isinstance(body, dict) else {}
+        reply = json_or_error(response, "Trello", WRITE_HINT)
+        return reply if isinstance(reply, dict) else {}
 
     def _auth(self) -> dict[str, str]:
         return {"key": self.key, "token": self.token}
-
-
-def _list_id(ids: dict[str, str], list_name: str) -> str:
-    if list_name not in ids:
-        board = ", ".join(sorted(ids)) or "no lists"
-        raise ToolError(
-            f"No list named '{list_name}' on the board. The board has: {board}. "
-            f"The factory expects: {lists_sentence().removeprefix('Lists are: ')}"
-        )
-    return ids[list_name]
 
 
 def _summary(card: dict, list_name: str) -> dict:

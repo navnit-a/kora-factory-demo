@@ -1,0 +1,139 @@
+from factory_tools.lists import BOARD_LISTS, canonical_name
+from factory_tools.trello.look import LABELS, LANE_LOOK, LANE_STICKERS, labels_on_create
+
+CANONICAL_LISTS = tuple({"id": f"list-{n}", "name": name} for n, name in enumerate(BOARD_LISTS))
+
+
+def card(lane: str, title: str, **fields) -> dict:
+    return {
+        "list": lane,
+        "title": title,
+        "description": "",
+        "comments": (),
+        "cover": None,
+        "stickers": (),
+        "labels": (),
+        "checklist": (),
+        **fields,
+    }
+
+
+class FakeBoard:
+    def __init__(
+        self,
+        labels: dict[str, dict],
+        cards: dict[str, dict],
+        lists: tuple[dict, ...] = CANONICAL_LISTS,
+    ):
+        self.labels = dict(labels)
+        self.cards = dict(cards)
+        self.lists = tuple(dict(item) for item in lists)
+        self.writes: tuple[tuple, ...] = ()
+
+    def _write(self, *call) -> None:
+        self.writes = (*self.writes, call)
+
+    def _update(self, card_id: str, **fields) -> None:
+        self.cards = {**self.cards, card_id: {**self.cards[card_id], **fields}}
+
+    async def label_records(self) -> dict[str, dict]:
+        return {label_id: dict(label) for label_id, label in self.labels.items()}
+
+    async def rename_label(self, label_id: str, name: str) -> None:
+        self._write("rename_label", label_id, name)
+        self.labels = {**self.labels, label_id: {**self.labels[label_id], "name": name}}
+
+    async def ensure_label(self, name: str) -> str:
+        found = next((i for i, label in self.labels.items() if label["name"] == name), None)
+        if found:
+            return found
+        self._write("ensure_label", name)
+        label_id = f"lab-{len(self.labels)}"
+        self.labels = {**self.labels, label_id: {"name": name, "color": LABELS[name]}}
+        return label_id
+
+    async def board_lists(self) -> list[dict]:
+        return [dict(item) for item in self.lists]
+
+    async def rename_list(self, list_id: str, name: str) -> None:
+        self._write("rename_list", list_id, name)
+        self.lists = tuple(
+            {**item, "name": name} if item["id"] == list_id else item for item in self.lists
+        )
+
+    async def create_list(self, name: str, pos: str = "bottom") -> dict:
+        self._write("create_list", name, pos)
+        list_id = f"list-new-{len(self.lists)}"
+        self.lists = (*self.lists, {"id": list_id, "name": name})
+        return {"id": list_id, "name": name}
+
+    async def create(self, list_name: str, title: str, description: str) -> dict:
+        self._write("create", list_name, title, description)
+        label_ids = tuple([await self.ensure_label(n) for n in labels_on_create(title, list_name)])
+        card_id = f"c-new-{len(self.cards)}"
+        cover = LANE_LOOK[list_name].cover
+        fields = {"description": description, "labels": label_ids, "cover": cover}
+        self.cards = {**self.cards, card_id: card(list_name, title, **fields)}
+        return {"id": card_id, "list": list_name}
+
+    def list_names(self) -> tuple[str, ...]:
+        return tuple(item["name"] for item in self.lists)
+
+    async def cards_in(self, list_name: str, limit: int) -> list[dict]:
+        if not any(canonical_name(item["name"]) == list_name for item in self.lists):
+            raise LookupError(f"No list named '{list_name}' on the fake board")
+        return [
+            {"id": card_id, "title": c["title"], "list": c["list"]}
+            for card_id, c in self.cards.items()
+            if c["list"] == list_name
+        ][:limit]
+
+    def names(self, card_id: str) -> tuple[str, ...]:
+        return tuple(self.labels[label_id]["name"] for label_id in self.cards[card_id]["labels"])
+
+    async def card_look(self, card_id: str) -> dict:
+        c = self.cards[card_id]
+        labels = tuple(dict(self.labels[label_id]) for label_id in c["labels"])
+        return {"cover": c["cover"], "description": c["description"], "labels": labels}
+
+    async def comment(self, card_id: str, text: str) -> dict:
+        self._write("comment", card_id, text)
+        self._update(card_id, comments=(*self.cards[card_id]["comments"], text))
+        return {"id": card_id, "comment_id": f"cm-{len(self.writes)}"}
+
+    async def card(self, card_id: str) -> dict:
+        texts = self.cards[card_id]["comments"]
+        return {"id": card_id, "comments": [{"when": "", "text": text} for text in texts]}
+
+    async def stickers(self, card_id: str) -> list[dict]:
+        images = self.cards[card_id]["stickers"]
+        return [{"id": f"s{n}", "image": image} for n, image in enumerate(images)]
+
+    async def set_cover(self, card_id: str, color: str | None) -> None:
+        self._write("set_cover", card_id, color)
+        self._update(card_id, cover=color)
+
+    async def set_lane_sticker(self, card_id: str, image: str | None) -> None:
+        self._write("set_lane_sticker", card_id, image)
+        kept = tuple(s for s in self.cards[card_id]["stickers"] if s not in LANE_STICKERS)
+        self._update(card_id, stickers=(*kept, *((image,) if image else ())))
+
+    async def add_label(self, card_id: str, name: str) -> dict:
+        self._write("add_label", card_id, name)
+        label_id = await self.ensure_label(name)
+        self._update(card_id, labels=(*self.cards[card_id]["labels"], label_id))
+        return {"id": card_id, "label": name, "added": True}
+
+    async def remove_label(self, card_id: str, name: str) -> dict:
+        self._write("remove_label", card_id, name)
+        kept = tuple(i for i in self.cards[card_id]["labels"] if self.labels[i]["name"] != name)
+        self._update(card_id, labels=kept)
+        return {"id": card_id, "label": name, "removed": True}
+
+    async def checklist_items(self, card_id: str) -> tuple[tuple[str, str], ...]:
+        return tuple((item, "incomplete") for item in self.cards[card_id]["checklist"])
+
+    async def add_checklist(self, card_id: str, items: tuple[str, ...]) -> dict:
+        self._write("add_checklist", card_id, items)
+        self._update(card_id, checklist=items)
+        return {"id": card_id, "checklist_items": len(items)}

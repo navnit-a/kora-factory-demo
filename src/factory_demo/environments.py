@@ -27,8 +27,29 @@ NODE_WEB = EnvironmentSpec(
         "api.github.com",
         "codeload.github.com",
         "objects.githubusercontent.com",
+        "sydney.platformcon.com",
     ),
 )
+
+PYTHON_TOOLS = EnvironmentSpec(
+    slug="python-tools",
+    name="Python tools",
+    description="Python 3 with uv for the kora-factory-demo repository (ruff, pytest).",
+    sandbox_image="kora-base",
+    cpu="1",
+    memory="2Gi",
+    disk="8Gi",
+    egress_hosts=(
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "pypi.org",
+        "files.pythonhosted.org",
+    ),
+)
+
+ENVIRONMENTS = (NODE_WEB, PYTHON_TOOLS)
 
 
 def environment_request(spec: EnvironmentSpec) -> dict:

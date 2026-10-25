@@ -10,7 +10,11 @@ import httpx
 TERMINAL_STATES = frozenset({"idle", "completed", "failed", "budget_exhausted"})
 DEFAULT_API_URL = "https://api.local.runkora.io"
 DEFAULT_CREDENTIALS = "/tmp/kora_credentials.json"
+TENANT_BUDGET_PATH = "/api/v1/policy/tenant-budget"
 AUTH_HINT = "kora token rejected: run 'make auth-refresh' in the kora checkout"
+EVENTS_PAGE = 200
+TOKENS_PATH = "/api/v1/identity/tokens"
+TOKEN_PREFIX = "kora_"
 
 
 class KoraAuthError(Exception):
@@ -94,8 +98,66 @@ class KoraClient:
     def get_run(self, run_id: str) -> dict:
         return self._request("GET", f"/api/v1/runs/{run_id}")
 
+    def run_events(self, run_id: str, limit: int = 400) -> list[dict]:
+        events: tuple[dict, ...] = ()
+        after_seq = 0
+        while len(events) < limit:
+            page = self._events_page(run_id, after_seq, min(EVENTS_PAGE, limit - len(events)))
+            events = (*events, *page["events"])
+            if not page["has_more"] or not page["events"]:
+                break
+            after_seq = page["next_seq"]
+        return list(events)
+
+    def _events_page(self, run_id: str, after_seq: int, limit: int) -> dict:
+        query = httpx.QueryParams(after_seq=str(after_seq), limit=str(limit))
+        response = self.http.get(
+            f"/api/v1/runs/{run_id}/events?{query}", headers={"Accept": "application/json"}
+        )
+        if response.status_code == 401:
+            raise KoraAuthError(AUTH_HINT)
+        response.raise_for_status()
+        return _valid_events_page(response.json(), run_id)
+
+    def create_token(self, name: str, scopes: list[str], expires_in_days: int) -> dict:
+        body = {"name": name, "scopes": list(scopes), "expires_in_days": expires_in_days}
+        return self._request("POST", TOKENS_PATH, body)
+
     def run_usage(self, run_id: str) -> dict:
         return self._request("GET", f"/v1/usage/run/{run_id}")
+
+    def list_triggers(self) -> list[dict]:
+        return _as_list(self._request("GET", "/api/v1/triggers"))
+
+    def create_trigger(self, request: dict) -> dict:
+        return self._request("POST", "/api/v1/triggers", request)
+
+    def update_trigger(self, trigger_id: str, patch: dict) -> dict:
+        return self._request("PATCH", f"/api/v1/triggers/{trigger_id}", patch)
+
+    def fire_trigger(self, trigger_id: str, variables: dict[str, str]) -> str:
+        body = {"variables": variables}
+        reply = self._request("POST", f"/api/v1/trigger-fires/{trigger_id}", body)
+        delivery_id = reply.get("delivery_id") if isinstance(reply, dict) else None
+        if not isinstance(delivery_id, str) or not delivery_id:
+            raise ValueError(f"kora fired trigger {trigger_id} but sent no delivery_id")
+        return delivery_id
+
+    def list_deliveries(self, trigger_id: str, limit: int = 10) -> list[dict]:
+        query = httpx.QueryParams(trigger_id=trigger_id, limit=str(limit), omit_payload="true")
+        return _as_list(self._request("GET", f"/api/v1/trigger-deliveries?{query}"))
+
+    def get_tenant_budget(self) -> dict | None:
+        try:
+            return self._request("GET", TENANT_BUDGET_PATH)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code == 404:
+                return None
+            raise
+
+    def set_tenant_budget(self, limit_usd: float, reset_cadence: str) -> dict:
+        body = {"limit_usd": limit_usd, "reset_cadence": reset_cadence}
+        return self._request("PUT", TENANT_BUDGET_PATH, body)
 
     def wait_for_run(self, run_id: str, timeout_s: int = 600, poll_s: float = 5.0) -> dict:
         deadline = time.monotonic() + timeout_s
@@ -111,10 +173,22 @@ class KoraClient:
 def _as_list(payload: dict | list) -> list[dict]:
     if isinstance(payload, list):
         return payload
-    for key in ("items", "data", "models", "environments", "agent_types"):
+    for key in ("items", "data", "models", "environments", "agent_types", "triggers", "deliveries"):
         if isinstance(payload.get(key), list):
             return payload[key]
     return []
+
+
+def _valid_events_page(payload: object, run_id: str) -> dict:
+    events = payload.get("events") if isinstance(payload, dict) else None
+    if not isinstance(events, list) or not all(isinstance(event, dict) for event in events):
+        raise ValueError(f"kora sent the run events of {run_id} in an unexpected shape")
+    next_seq = payload.get("next_seq", 0)
+    return {
+        "events": events,
+        "next_seq": next_seq if isinstance(next_seq, int) else 0,
+        "has_more": payload.get("has_more") is True,
+    }
 
 
 def default_ca_file() -> str | bool:
@@ -147,3 +221,9 @@ def load_client(
 
 def tls_context(ca: str | bool) -> ssl.SSLContext | bool:
     return ssl.create_default_context(cafile=ca) if isinstance(ca, str) else ca
+
+
+def client_from_token(token: str, base_url: str | None = None) -> KoraClient:
+    url = base_url or os.environ.get("KORA_API_URL") or DEFAULT_API_URL
+    bare = token.removeprefix(TOKEN_PREFIX)
+    return KoraClient(url, bare, verify=tls_context(default_ca_file()))

@@ -35,3 +35,6 @@ committed, pasted into a prompt, or shown on screen.
 - 25 Oct 2026, 01:30: a `make up` run stopped building at policy-service with exit 255 and no
   error; building that image alone worked, and rerunning `make up` resumes from the images already
   in the local registry. If it recurs, run `bash scripts/cluster/redeploy.sh <service> --build-only`.
+- 25 Oct 2026, 01:40: platform up after four `make up` runs. A Helm upgrade collided with the first
+  install, and the kora-identity OIDC check fired seconds before the provider logged as initialised;
+  `make cluster-deploy` on its own finished the tenant step. Port 443 free, so no `:8443`.

@@ -1,0 +1,19 @@
+apiVersion: runkora.io/v1alpha1
+kind: InferenceProvider
+metadata:
+  name: ailabs-claude
+  namespace: kora-system
+spec:
+  type: compatible
+  displayName: ClearRoute Foundry Claude
+  models:
+    - claude-haiku-5-5
+    - claude-sonnet-5-5
+    - claude-fable-5-1
+  compatible:
+    baseURL: https://${AILABS_FOUNDRY_RESOURCE}.services.ai.azure.com/anthropic/v1
+    apis:
+      - messages
+    apiKeySecretRef:
+      name: azure-ailabs
+      key: apiKey

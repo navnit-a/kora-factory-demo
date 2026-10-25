@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-telegram
+  namespace: kora-tenant-example
+  labels:
+    app: tools-telegram
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tools-telegram
+  template:
+    metadata:
+      labels:
+        app: tools-telegram
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: kora-registry:5001/factory-tools:latest
+          imagePullPolicy: Always
+          args: ["factory_tools.telegram"]
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: tools-telegram
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-telegram
+  namespace: kora-tenant-example
+spec:
+  selector:
+    app: tools-telegram
+  ports:
+    - name: http
+      appProtocol: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: runkora.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: telegram
+  namespace: kora-tenant-example
+spec:
+  displayName: "Telegram"
+  description: "Posts to the kora factory Telegram channel."
+  endpoint: http://tools-telegram.kora-tenant-example.svc:8000/mcp
+  transport: streamable-http
+  reintrospectIntervalSeconds: 300
+  workload:
+    selector:
+      app: tools-telegram

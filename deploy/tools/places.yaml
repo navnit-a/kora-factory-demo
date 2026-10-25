@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-places
+  namespace: kora-tenant-example
+  labels:
+    app: tools-places
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tools-places
+  template:
+    metadata:
+      labels:
+        app: tools-places
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: kora-registry:5001/factory-tools:latest
+          imagePullPolicy: Always
+          args: ["factory_tools.places"]
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-places
+  namespace: kora-tenant-example
+spec:
+  selector:
+    app: tools-places
+  ports:
+    - name: http
+      appProtocol: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: runkora.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: places
+  namespace: kora-tenant-example
+spec:
+  displayName: "Places"
+  description: "Cafes and restaurants near a point, from OpenStreetMap."
+  endpoint: http://tools-places.kora-tenant-example.svc:8000/mcp
+  transport: streamable-http
+  reintrospectIntervalSeconds: 300
+  workload:
+    selector:
+      app: tools-places

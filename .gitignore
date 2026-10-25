@@ -4,3 +4,7 @@ deploy/generated/
 .venv/
 __pycache__/
 shots/
+.superpowers/
+.coverage
+.pytest_cache/
+.ruff_cache/

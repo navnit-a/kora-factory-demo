@@ -1,0 +1,14 @@
+.venv
+.env
+.git
+.github
+.superpowers
+.pytest_cache
+.ruff_cache
+.coverage
+deploy
+docs
+secrets
+tests
+shots
+__pycache__

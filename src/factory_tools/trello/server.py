@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 import httpx
@@ -8,6 +9,7 @@ from pydantic import Field
 from factory_tools.lists import BOARD_LISTS, ListName
 from factory_tools.trello.client import TrelloClient
 
+TRELLO_TEXT_LIMIT = 16384
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
@@ -27,65 +29,77 @@ mcp = FastMCP(
 )
 
 
-def client() -> TrelloClient:
-    return TrelloClient.from_env(httpx.AsyncClient())
+async def with_trello[T](action: Callable[[TrelloClient], Awaitable[T]]) -> T:
+    async with httpx.AsyncClient() as http:
+        return await action(TrelloClient.from_env(http))
 
 
-@mcp.tool(annotations=READ)
+def text_field(description: str, min_length: int = 1):
+    return Field(min_length=min_length, max_length=TRELLO_TEXT_LIMIT, description=description)
+
+
+@mcp.tool(
+    annotations=READ,
+    description="List the cards in one list of the factory board, in board order, top first: "
+    "id, title, list, url and last activity.",
+)
 async def trello_list_cards(
     list_name: Annotated[ListName, Field(description=LIST_DESCRIPTION)],
     limit: Annotated[
-        int, Field(ge=1, le=50, description="Maximum cards to return, oldest first.")
+        int, Field(ge=1, le=50, description="Maximum cards to return, top of the list first.")
     ] = 10,
 ) -> list[dict]:
-    """List the cards in one list of the factory board: id, title, list, url and last activity."""
-    return await client().cards_in(list_name, limit)
+    return await with_trello(lambda trello: trello.cards_in(list_name, limit))
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(
+    annotations=READ,
+    description="Read one card in full: title, list, description and its last five comments, "
+    "newest first.",
+)
 async def trello_get_card(card_id: CardId) -> dict:
-    """Read one card in full: title, list, description and its last five comments, newest first."""
-    return await client().card(card_id)
+    return await with_trello(lambda trello: trello.card(card_id))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(
+    annotations=WRITE,
+    description="Move a card to another list. The target list is checked first, then the reason "
+    "is posted as a comment, then the card moves.",
+)
 async def trello_move_card(
     card_id: CardId,
     to_list: Annotated[ListName, Field(description=LIST_DESCRIPTION)],
-    reason: Annotated[
-        str, Field(min_length=3, description="Why the card moves; posted as a comment.")
-    ],
+    reason: Annotated[str, text_field("Why the card moves; posted as a comment.", 3)],
 ) -> dict:
-    """Move a card to another list, posting the reason as a comment first."""
-    trello = client()
-    await trello.comment(card_id, reason)
-    moved = await trello.move(card_id, to_list)
-    return {**moved, "comment_posted": True}
+    return await with_trello(lambda trello: trello.move_with_reason(card_id, to_list, reason))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(
+    annotations=WRITE,
+    description="Add a comment to a card: what was done, what was checked, what is left.",
+)
 async def trello_comment_card(
     card_id: CardId,
-    text: Annotated[str, Field(min_length=1, description="The comment, in plain words.")],
+    text: Annotated[str, text_field("The comment, in plain words.")],
 ) -> dict:
-    """Add a comment to a card: what was done, what was checked, what is left."""
-    return await client().comment(card_id, text)
+    return await with_trello(lambda trello: trello.comment(card_id, text))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, description="Create a new card in a list of the factory board.")
 async def trello_create_card(
     list_name: Annotated[ListName, Field(description=LIST_DESCRIPTION)],
-    title: Annotated[str, Field(min_length=3, description="A short imperative title.")],
-    description: Annotated[str, Field(description="The story or idea in full, Markdown allowed.")],
+    title: Annotated[str, text_field("A short imperative title.", 3)],
+    description: Annotated[str, text_field("The story or idea in full, Markdown allowed.", 0)],
 ) -> dict:
-    """Create a new card in a list of the factory board."""
-    return await client().create(list_name, title, description)
+    return await with_trello(lambda trello: trello.create(list_name, title, description))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(
+    annotations=WRITE,
+    description="Replace a card's description, for example to turn an idea into a user story.",
+)
 async def trello_update_card_description(
     card_id: CardId,
-    text: Annotated[str, Field(description="The new description; replaces the old one entirely.")],
+    text: Annotated[str, text_field("The new description; replaces the old one entirely.", 0)],
 ) -> dict:
-    """Replace a card's description, for example to turn an idea into a user story."""
-    return await client().set_description(card_id, text)
+    return await with_trello(lambda trello: trello.set_description(card_id, text))

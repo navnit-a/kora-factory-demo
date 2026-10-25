@@ -73,3 +73,23 @@ def test_serve_binds_to_loopback_unless_told_otherwise(monkeypatch):
     assert bind_host() == "127.0.0.1"
     monkeypatch.setenv("BIND_HOST", "0.0.0.0")
     assert bind_host() == "0.0.0.0"
+
+
+def test_client_waits_longer_than_overpass_query_timeout():
+    from factory_tools.http import DEFAULT_TIMEOUT_S
+
+    assert DEFAULT_TIMEOUT_S > 25
+
+
+def test_no_tool_uses_a_docstring_for_its_description():
+    import inspect
+
+    from factory_tools.places import server as places
+    from factory_tools.telegram import server as telegram
+    from factory_tools.transport import server as transport
+    from factory_tools.trello import server as trello
+
+    for module in (trello, telegram, transport, places):
+        for name, fn in inspect.getmembers(module, inspect.iscoroutinefunction):
+            if name.startswith(("trello_", "telegram_", "transport_", "places_")):
+                assert fn.__doc__ is None, f"{module.__name__}.{name} has a docstring"

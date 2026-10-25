@@ -9,6 +9,7 @@ from fastmcp.exceptions import ToolError
 from factory_tools.trello import server
 
 API = "https://api.trello.com/1"
+CID = "0123456789abcdef0123456a"
 LISTS = [{"id": f"l-{n.lower().replace(' ', '-')}", "name": n} for n in server.BOARD_LISTS]
 EXPECTED_TOOLS = {
     "trello_list_cards",
@@ -150,3 +151,23 @@ def test_create_card_and_update_description():
         call("trello_update_card_description", card_id="0123456789abcdef0123456b", text="story")
     )
     assert updated == {"id": "0123456789abcdef0123456b", "description_updated": True}
+
+
+@respx.mock
+def test_move_to_a_renamed_list_posts_no_comment():
+    renamed = [item for item in LISTS if item["name"] != "Review"] + [
+        {"id": "l-cr", "name": "Code review"}
+    ]
+    respx.get(f"{API}/boards/board/lists").mock(return_value=httpx.Response(200, json=renamed))
+    respx.get(f"{API}/cards/{CID}").mock(
+        return_value=httpx.Response(200, json={"idBoard": "board"})
+    )
+    comment = respx.post(f"{API}/cards/{CID}/actions/comments")
+    with pytest.raises(ToolError, match="The board has: .*Code review"):
+        run(call("trello_move_card", card_id=CID, to_list="Review", reason="PR opened"))
+    assert not comment.called
+
+
+def test_text_fields_cap_at_trellos_limit():
+    with pytest.raises(ToolError):
+        run(call("trello_comment_card", card_id=CID, text="x" * 16385))

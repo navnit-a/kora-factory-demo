@@ -7,7 +7,7 @@ from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from factory_tools.http import request
+from factory_tools.http import json_or_error, request
 
 API = "https://api.telegram.org"
 MAX_TEXT = 4096
@@ -26,14 +26,16 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(
+    annotations=WRITE,
+    description="Post one message to the factory's Telegram channel and return its id and link.",
+)
 async def telegram_send_message(
     text: Annotated[
         str,
         Field(min_length=1, description="The message, plain text, up to 4,096 characters."),
     ],
 ) -> dict:
-    """Post one message to the factory's Telegram channel and return its id and link."""
     settings = _settings()
     body = {"chat_id": settings["TELEGRAM_CHAT_ID"], "text": _fit(text)}
     async with httpx.AsyncClient() as http:
@@ -46,7 +48,8 @@ async def telegram_send_message(
             retry_429=True,
             data=body,
         )
-    message_id = response.json().get("result", {}).get("message_id", 0)
+    reply = json_or_error(response, "Telegram", "Try again in a minute.")
+    message_id = reply.get("result", {}).get("message_id", 0)
     channel = settings["TELEGRAM_CHANNEL"].lstrip("@")
     return {"message_id": message_id, "url": f"https://t.me/{channel}/{message_id}"}
 

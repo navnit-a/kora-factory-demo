@@ -7,7 +7,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from factory_tools.http import request, truncate
+from factory_tools.http import json_or_error, request, truncate
 
 ADD_INFO_URL = "https://api.transport.nsw.gov.au/v1/tp/add_info"
 ATTRIBUTION = "Data: Transport for NSW Open Data, CC BY 4.0"
@@ -30,16 +30,19 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(
+    annotations=READ,
+    description="Current Sydney Trains disruptions, up to three per line and twenty in "
+    "all, or normal.",
+)
 async def transport_sydney_trains_status() -> dict:
-    """Current Sydney Trains disruptions, up to three per line and twenty in all, or normal."""
     key = os.environ.get("TFNSW_API_KEY", "")
     if not key:
         raise ToolError("Sydney transport is not configured: set TFNSW_API_KEY")
     now = datetime.now(UTC)
     async with httpx.AsyncClient() as http:
         response = await _fetch(http, key, query_params(now))
-    every = _pairs(response.json())
+    every = _pairs(json_or_error(response, "Transport for NSW", "Try again in a minute."))
     lines = _capped(every)
     return {
         "status": "disruptions" if lines else "normal",

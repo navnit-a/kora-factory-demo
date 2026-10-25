@@ -20,6 +20,10 @@ LISTS = [
 ]
 
 
+def form(request: httpx.Request) -> dict:
+    return dict(httpx.QueryParams(request.content.decode()))
+
+
 def client() -> TrelloClient:
     return TrelloClient("key", "token", "board", httpx.AsyncClient())
 
@@ -46,7 +50,9 @@ def test_list_ids_resolves_names_at_call_time():
 @respx.mock
 def test_cards_in_unknown_list_names_the_lists():
     mock_lists([{"id": "l-ideas", "name": "Ideas"}])
-    with pytest.raises(ToolError, match="No list named 'Review'. Lists are: Ideas, Backlog"):
+    with pytest.raises(
+        ToolError, match="No list named 'Review' on the board. The board has: Ideas"
+    ):
         run(client().cards_in("Review", 10))
 
 
@@ -126,7 +132,7 @@ def test_move_sends_the_target_list_id():
         )
     )
     moved = run(client().move("0123456789abcdef0123456a", "Done"))
-    assert put.calls[0].request.url.params["idList"] == "l-done"
+    assert form(put.calls[0].request)["idList"] == "l-done"
     assert moved == {"id": "0123456789abcdef0123456a", "list": "Done"}
 
 
@@ -139,8 +145,8 @@ def test_create_posts_to_the_list_id():
         )
     )
     created = run(client().create("Ideas", "Dark mode", "Attendees in a dim hall"))
-    params = post.calls[0].request.url.params
-    assert params["idList"] == "l-ideas" and params["name"] == "Dark mode"
+    fields = form(post.calls[0].request)
+    assert fields["idList"] == "l-ideas" and fields["name"] == "Dark mode"
     assert created == {
         "id": "0123456789abcdef0123456b",
         "url": "https://trello.com/c/c9",
@@ -165,12 +171,12 @@ def test_comment_and_description_use_their_endpoints():
         "id": "0123456789abcdef0123456a",
         "comment_id": "a1",
     }
-    assert comment.calls[0].request.url.params["text"] == "done"
+    assert form(comment.calls[0].request)["text"] == "done"
     assert run(client().set_description("0123456789abcdef0123456a", "new")) == {
         "id": "0123456789abcdef0123456a",
         "description_updated": True,
     }
-    assert desc.calls[0].request.url.params["desc"] == "new"
+    assert form(desc.calls[0].request)["desc"] == "new"
 
 
 @respx.mock
@@ -215,3 +221,36 @@ def test_a_card_on_another_board_is_refused():
     with pytest.raises(ToolError, match="not on the factory board"):
         run(client().move("0123456789abcdef01234567", "Done"))
     assert not move.called
+
+
+@respx.mock
+def test_missing_list_error_names_the_lists_the_board_really_has():
+    mock_lists([{"id": "l-ideas", "name": "Ideas"}, {"id": "l-cr", "name": "Code review"}])
+    with pytest.raises(ToolError) as caught:
+        run(client().cards_in("Review", 10))
+    message = str(caught.value)
+    assert "No list named 'Review' on the board" in message
+    assert "The board has: Code review, Ideas" in message
+
+
+@respx.mock
+def test_writes_send_text_in_the_form_body_not_the_url():
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(200, json={"idBoard": "board"})
+    )
+    route = respx.post(f"{API}/cards/0123456789abcdef0123456a/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    run(client().comment("0123456789abcdef0123456a", "x" * 5000))
+    request = route.calls[0].request
+    assert "text" not in request.url.params
+    assert dict(httpx.QueryParams(request.content.decode()))["text"] == "x" * 5000
+
+
+@respx.mock
+def test_non_json_reply_is_a_tool_error_with_a_next_step():
+    respx.get(f"{API}/boards/board/lists").mock(
+        return_value=httpx.Response(200, text="<html>maintenance</html>")
+    )
+    with pytest.raises(ToolError, match="Trello sent a reply that is not JSON"):
+        run(client().list_ids())

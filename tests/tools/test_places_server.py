@@ -82,3 +82,22 @@ def test_tool_is_read_only():
     tool = run(listed())
     assert tool.name == "places_lunch_nearby"
     assert tool.annotations.read_only_hint is True
+
+
+@respx.mock
+def test_overpass_runtime_error_remark_is_a_retry_hint_not_no_places():
+    respx.post(OVERPASS_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"elements": [], "remark": "runtime error: Query timed out in 'query' at line 1"},
+        )
+    )
+    with pytest.raises(ToolError, match="retry in a minute or use a smaller radius"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+
+
+@respx.mock
+def test_client_timeout_is_a_tool_error_with_the_hint():
+    respx.post(OVERPASS_URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    with pytest.raises(ToolError, match="Overpass did not answer in time"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))

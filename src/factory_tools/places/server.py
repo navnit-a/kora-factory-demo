@@ -7,14 +7,14 @@ from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from factory_tools.http import request
+from factory_tools.http import json_or_error, request
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 ATTRIBUTION = "Data: OpenStreetMap contributors, ODbL"
 USER_AGENT = "kora-factory-demo (platformcon day planner)"
 EARTH_RADIUS_M = 6_371_000
 MAX_CANDIDATES = 200
-OVERPASS_HINT = "Overpass is busy: retry in a minute or use a smaller radius."
+OVERPASS_HINT = "Overpass did not answer in time: retry in a minute or use a smaller radius."
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
 
 mcp = FastMCP(
@@ -23,7 +23,11 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(
+    annotations=READ,
+    description="Named cafes and restaurants near a point, nearest first, with kind, "
+    "cuisine and street.",
+)
 async def places_lunch_nearby(
     latitude: Annotated[float, Field(ge=-90, le=90, description="Latitude of the starting point.")],
     longitude: Annotated[
@@ -34,7 +38,6 @@ async def places_lunch_nearby(
     ] = 600,
     limit: Annotated[int, Field(ge=1, le=10, description="How many places to return.")] = 3,
 ) -> dict:
-    """Named cafes and restaurants near a point, nearest first, with kind, cuisine and street."""
     query = (
         f'[out:json][timeout:25];(node["amenity"~"cafe|restaurant"]["name"]'
         f"(around:{radius_m},{latitude},{longitude}););out {MAX_CANDIDATES};"
@@ -43,7 +46,10 @@ async def places_lunch_nearby(
         response = await request(
             http, "Overpass", "POST", OVERPASS_URL, hint=OVERPASS_HINT, data={"data": query}
         )
-    places = rank_places(response.json().get("elements", []), latitude, longitude, limit)
+    payload = json_or_error(response, "Overpass", OVERPASS_HINT)
+    if "runtime error" in str(payload.get("remark", "")):
+        raise ToolError(OVERPASS_HINT)
+    places = rank_places(payload.get("elements", []), latitude, longitude, limit)
     if not places:
         raise ToolError(
             f"There are no cafes or restaurants within {radius_m} m; try a larger radius."

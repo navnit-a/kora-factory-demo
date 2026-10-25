@@ -197,19 +197,23 @@ PRODUCT_WORKFLOW = (
 )
 
 DESIGN_DIRECTION = (
-    "Design direction. Calm, spacious and friendly, read at a glance in a busy foyer,"
-    " phone first (393 px). The default theme is light: the product is filmed on a light"
-    " screen; a dark switch may exist but never as the default. Colours are the Harbour"
-    " CSS variables in `src/index.css`;"
-    " use only those: `--paper` page, `--surface` cards with a 1px `--hairline` "
-    "border and no shadow, `--ink` headings and primary buttons, `--accent` teal for "
-    "links, selection and the 2px focus ring, `--now` amber only for what is "
-    "happening now, never body text. Poppins 400 and 500; page title 32, section 24, "
-    "card title 16, body 14; tabular figures for times. Spacing 4, 8, 12, 16, 24, 32,"
-    " 48; radius 8 inputs, 16 cards, fully round pill buttons at least 44 high. The "
-    "current session gets a 4px `--now` bar and the word Now. Motion 150 to 200 ms "
-    "ease-out, off under prefers-reduced-motion. No purple, no gradients on text, no "
-    "shadows on cards, no emoji icons."
+    "Design direction. Calm, spacious, friendly, read at a glance in a busy foyer, phone "
+    "first (393 px). The default theme is light; a dark switch may exist but never as the "
+    "default. Colours are only the Harbour CSS variables in `src/index.css`: `--paper` page, "
+    "`--surface` cards with a 1px `--hairline` border and no shadow, `--ink` headings and "
+    "primary buttons, `--accent` teal for links, selection and the 2px focus ring, `--now` "
+    "amber only for what is happening now, never body text. Poppins 400 and 500; page title "
+    "32, section 24, card title 16, body 14; tabular figures for times. Spacing 4, 8, 12, "
+    "16, 24, 32, 48; radius 8 inputs, 16 cards; round pills at least 44 high. The current "
+    "session gets a 4px `--now` bar and the word Now. Motion 150 to 200 ms ease-out, off "
+    "under prefers-reduced-motion. Reuse existing components, never a twin: `Hero`, the "
+    "day-at-a-glance strip `Glance`, `TimeSlot` groups of `SessionCard`, `Avatar` for "
+    "speakers, `TrackFilter`, `ThemeSwitch`, `SessionDetail`, `Footer`. The `Hero` band, "
+    "`--harbour` with tide lines, stays as is. Room colour comes only from `tints.ts` "
+    "(`--track-n` by track order): the card's top band, the filled room chip, the filter "
+    "dot, never as text colour. New sections are hairline cards on `--paper` under `Glance`; "
+    "new state controls are pills or switches like `TrackFilter` and `ThemeSwitch`. No "
+    "purple, no gradients on text, no shadows on cards, no emoji icons."
 )
 
 

@@ -407,6 +407,30 @@ def test_design_direction_is_light_by_default():
     assert "never as the default" in DESIGN_DIRECTION
 
 
+def test_design_direction_names_the_planners_components():
+    for name in (
+        "Hero",
+        "Glance",
+        "TimeSlot",
+        "SessionCard",
+        "TrackFilter",
+        "ThemeSwitch",
+        "Avatar",
+        "SessionDetail",
+        "Footer",
+        "tints.ts",
+        "--harbour",
+        "--track-n",
+    ):
+        assert name in DESIGN_DIRECTION, name
+    assert "never as text colour" in DESIGN_DIRECTION
+    assert "The default theme is light" in DESIGN_DIRECTION
+    assert "No purple, no gradients on text, no shadows on cards, no emoji icons." in (
+        DESIGN_DIRECTION
+    )
+    assert len(DESIGN_DIRECTION.split()) <= 230
+
+
 def agent_ops_actions() -> list[str]:
     work = section(prompt("agent-ops"), "how_to_work")
     step = work[work.index("\n5. ") : work.index("\n6. ")]

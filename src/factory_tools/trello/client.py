@@ -6,7 +6,13 @@ import httpx
 from fastmcp.exceptions import ToolError
 
 from factory_tools.http import json_or_error, request, truncate
-from factory_tools.trello import card_view, checklist_client, lists_client, look_client
+from factory_tools.trello import (
+    agent_ops_client,
+    card_view,
+    checklist_client,
+    lists_client,
+    look_client,
+)
 from factory_tools.trello.look import labels_on_create, signed_reason
 
 API = "https://api.trello.com/1"
@@ -41,6 +47,8 @@ class TrelloClient:
     add_checklist = checklist_client.add_checklist
     checklist_items = checklist_client.checklist_items
     check_item = checklist_client.check_item
+    write_watch_log = agent_ops_client.write_watch_log
+    mark_diagnosed = agent_ops_client.mark_diagnosed
 
     @classmethod
     def from_env(cls, http: httpx.AsyncClient) -> "TrelloClient":

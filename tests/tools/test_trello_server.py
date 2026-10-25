@@ -22,6 +22,8 @@ EXPECTED_TOOLS = {
     "trello_add_checklist",
     "trello_check_item",
     "trello_set_priority",
+    "trello_write_watch_log",
+    "trello_mark_diagnosed",
 }
 
 
@@ -177,7 +179,12 @@ def test_label_description_says_actor_labels_are_set_by_moves_not_by_hand():
     assert "set by moves" in description
     assert "never add one by hand" in description
     assert "🙋 Needs a human" in description
-    assert "except 🛰 Agent ops, which agent ops adds to a card it commented on" in description
+    assert "🛰 Agent ops comes only from trello_mark_diagnosed" in description
+
+
+def test_add_label_no_longer_names_agent_ops_as_a_user():
+    tool = run(tools())["trello_add_label"]
+    assert "agent ops" not in tool.description.lower()
 
 
 @respx.mock
@@ -234,6 +241,8 @@ def test_the_look_tools_are_writes_that_say_who_uses_them():
         "trello_add_checklist": "product owner",
         "trello_check_item": "tester",
         "trello_set_priority": "delivery lead",
+        "trello_write_watch_log": "agent ops",
+        "trello_mark_diagnosed": "agent ops",
     }
     for name, owner in owners.items():
         assert listed[name].annotations.read_only_hint is False

@@ -11,8 +11,10 @@ from factory_tools.trello.client import TrelloClient
 from factory_tools.trello.look import (
     ACTOR_LABEL_NAMES,
     AGENT_OPS_LABEL,
+    AGENT_OPS_PREFIX,
     CHECKLIST_NAME,
     LABELS,
+    WATCH_LOG_TITLE,
     LabelName,
 )
 
@@ -27,10 +29,11 @@ LABEL_DESCRIPTION = (
     + ", ".join(name for name in LABELS if name not in ACTOR_LABEL_NAMES)
     + ". The actor labels ("
     + ", ".join(name for name in LABELS if name in ACTOR_LABEL_NAMES)
-    + ") are set by moves; never add one by hand, except "
+    + ") are set by moves; never add one by hand. "
     + AGENT_OPS_LABEL
-    + ", which agent ops adds to a card it commented on."
+    + " comes only from trello_mark_diagnosed."
 )
+DIAGNOSIS_LIMIT = 2000
 Criterion = Annotated[str, Field(min_length=3, max_length=200)]
 CardId = Annotated[
     str, Field(description="The Trello card id from trello_list_cards or trello_get_card.")
@@ -129,9 +132,8 @@ async def trello_update_card_description(
 @mcp.tool(
     annotations=WRITE,
     description="Add a named label to a card; the board's colour for it is applied. Used by the "
-    "product owner (type, Proposed via Telegram), the delivery lead and support (Depends on), "
-    f"and agent ops ({AGENT_OPS_LABEL}). "
-    "Moves and creates already set the type, Shipped and the lane look.",
+    "product owner (type, Proposed via Telegram) and the delivery lead and support "
+    "(Depends on). Moves and creates already set the type, Shipped and the lane look.",
 )
 async def trello_add_label(
     card_id: CardId,
@@ -184,3 +186,36 @@ async def trello_set_priority(
     high: Annotated[bool, Field(description="True to mark high priority, False to clear it.")],
 ) -> dict:
     return await with_trello(lambda trello: trello.set_priority(card_id, high))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Rewrite the '{WATCH_LOG_TITLE}' card in the Agent ops lane and post its first "
+    "line as a comment. Used by agent ops; it takes no card id, finds the one watch log itself and "
+    "refuses when it is missing or there is more than one.",
+)
+async def trello_write_watch_log(
+    text: Annotated[
+        str, text_field("The whole new watch log; replaces its description. First line first.")
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.write_watch_log(text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Mark a card in Blocked as diagnosed: post the note as a comment and add the "
+    f"{AGENT_OPS_LABEL} label. Used by agent ops; refuses a card in any other lane.",
+)
+async def trello_mark_diagnosed(
+    card_id: CardId,
+    note: Annotated[
+        str,
+        Field(
+            min_length=3,
+            max_length=DIAGNOSIS_LIMIT,
+            description=f"The diagnosis, starting '{AGENT_OPS_PREFIX}'; posted as a comment.",
+        ),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.mark_diagnosed(card_id, note))

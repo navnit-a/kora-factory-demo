@@ -48,7 +48,7 @@ First time, or after `make reset`:
     label, any stale actor label removed, and, where the description has criteria, its Acceptance
     criteria checklist. A second run touches only lanes and cards that have drifted. If it stops on a
     Trello rate limit, run it again; it is idempotent.
-12. `scripts/platform-check.sh` must print only `ok` lines, including all thirteen tools listed through
+12. `scripts/platform-check.sh` must print only `ok` lines, including all fifteen tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
 13. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
@@ -130,7 +130,9 @@ The Trello tool server dresses a card on every move and create, so the board rea
 | Agent ops | 🛰 Agent ops · watching the agents | 🛰 Agent ops | black | none |
 
 The Agent ops lane holds one card, `🛰 Agent ops watch log`, whose description agent ops rewrites
-after every run with what it read, found and did, and no card moves into or out of it.
+after every run with what it read, found and did, and no card moves into or out of it. Agent ops'
+board writes are limited to that log (`trello_write_watch_log`) and to marking a Blocked card
+diagnosed (`trello_mark_diagnosed`); the Trello server refuses any other card.
 
 Every move puts the destination lane's actor label on the card and takes the previous one off, so
 the card always says who has it. The move comment is signed by the agent that moves the card,

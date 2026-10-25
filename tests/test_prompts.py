@@ -734,7 +734,10 @@ def test_agent_ops_comments_keep_their_prefix():
     text = flat(prompt("agent-ops"))
     ops = signature("agent-ops")
     assert ops == f"🛰 {AGENT_OPS_PREFIX}"
-    assert f"`trello_comment_card`: your conclusion, starting `{AGENT_OPS_PREFIX}`" in text
+    assert (
+        f"`trello_mark_diagnosed`: your conclusion on a Blocked card, starting `{AGENT_OPS_PREFIX}`"
+        in text
+    )
     assert f"`{AGENT_OPS_PREFIX} <classification> for run <id>: <one line>`" in text
     assert f"comment starting `{AGENT_OPS_PREFIX}`" in text
     assert f"`{AGENT_OPS_PREFIX} <agent> was refused" not in text

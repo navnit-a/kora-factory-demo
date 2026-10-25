@@ -1,3 +1,5 @@
+from factory_tools.trello.look import AGENT_OPS_PREFIX
+
 SDLC_RULES: dict[int, str] = {
     1: (
         "**One Definition of Done for every card.** Tests written and passing in the "
@@ -152,7 +154,6 @@ REBASE_NEEDED = "Rebase needed:"
 OPERATOR_PREFIX = "Operator:"
 SCOUT_TAGS = ("title", "story", "criteria", "verdict", "dependencies", "reason")
 VERDICTS = ("buildable", "needs_dependency", "not_buildable")
-AGENT_OPS_PREFIX = "Agent ops:"
 SIGNATURES: dict[str, str] = {
     "product-owner": "💡 Product owner:",
     "delivery-lead": "📋 Delivery lead:",

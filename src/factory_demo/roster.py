@@ -335,9 +335,8 @@ ROSTER: tuple[AgentSpec, ...] = (
         SONNET,
         (
             *TRELLO_READ,
-            "trello_comment_card",
-            "trello_update_card_description",
-            "trello_add_label",
+            "trello_write_watch_log",
+            "trello_mark_diagnosed",
             *TELEGRAM,
             *PLATFORM_TOOLS["kora"],
         ),

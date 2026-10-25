@@ -10,7 +10,14 @@ from factory_demo.dress_card import (
     resolve_labels,
 )
 from factory_tools.lists import BOARD_LISTS, canonical_name, display_name
-from factory_tools.trello.look import AGENT_OPS, DEPENDS_ON, LABELS, LANE_STICKERS, SHIPPED
+from factory_tools.trello.look import (
+    AGENT_OPS,
+    DEPENDS_ON,
+    LABELS,
+    LANE_STICKERS,
+    SHIPPED,
+    WATCH_LOG_TITLE,
+)
 
 __all__ = [
     "DressReport",
@@ -29,7 +36,6 @@ RENAMES = {**COLOUR_NAMES, READY_COLOUR: READY}
 RENAME = "rename"
 RELABEL_HEADER = "Cards whose colour label becomes:"
 CREATE = "create"
-WATCH_LOG_TITLE = "🛰 Agent ops watch log"
 WATCH_LOG_DESCRIPTION = "Agent ops writes what it checked and found here after every run."
 
 LabelAction = tuple[str, str, str]

@@ -11,6 +11,8 @@ TOOLS_BY_SERVER = {
         "trello_add_checklist",
         "trello_check_item",
         "trello_set_priority",
+        "trello_write_watch_log",
+        "trello_mark_diagnosed",
     ),
     "telegram": ("telegram_send_message",),
     "transport": ("transport_sydney_trains_status",),

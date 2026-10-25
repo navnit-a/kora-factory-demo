@@ -62,15 +62,24 @@ def test_no_other_prompt_mentions_the_agent_ops_lane(slug):
 def test_tools_name_the_watch_log_writes():
     tools = flat(section(prompt("agent-ops"), "tools"))
     assert "`trello_list_cards`: list Blocked with limit 10, and `Agent ops`" in tools
-    assert "`trello_update_card_description`: rewrite the watch log" in tools
-    assert f"`trello_add_label`: the `{LABEL}` label" in tools
+    assert "`trello_write_watch_log`: rewrite the watch log" in tools
+    assert "`trello_mark_diagnosed`: your conclusion on a Blocked card, starting" in tools
+    assert f"adds the `{LABEL}` label" in tools
+
+
+def test_board_writes_go_only_through_the_two_narrow_tools():
+    whole = prompt("agent-ops")
+    for generic in ("trello_comment_card", "trello_update_card_description", "trello_add_label"):
+        assert generic not in whole, generic
+    lane = flat(section(whole, "lane"))
+    assert "Your only board writes are the watch log and marking a Blocked card diagnosed" in lane
 
 
 def test_every_run_ends_by_rewriting_the_watch_log():
     step = watch_step()
     assert "every run, even when nothing was found" in step
     assert f"`{WATCH_LOG}` with `trello_list_cards` on `Agent ops`" in step
-    assert "`trello_update_card_description`" in step
+    assert "`trello_write_watch_log`" in step
     assert "first line `Last run <UTC time>: read <n> runs and <m> Blocked cards.`" in step
     assert "up to five `- ` bullets" in step
     assert "`- Nothing needed attention.`" in step
@@ -79,11 +88,11 @@ def test_every_run_ends_by_rewriting_the_watch_log():
     assert "dropping the oldest" in step
 
 
-def test_the_watch_log_gets_one_comment_with_the_first_line_and_a_summary():
+def test_the_watch_log_tool_posts_the_first_line_as_its_comment():
     step = watch_step()
-    comment = step[step.index("`trello_comment_card`") :]
-    assert "on the watch log: the first line plus a one-line summary" in comment
-    assert step.index("`trello_update_card_description`") < step.index("`trello_comment_card`")
+    assert "The tool posts the first line as the watch log's comment" in step
+    missing = "If it says the watch log is missing or duplicated, say so in your final run message"
+    assert missing in step
 
 
 def test_every_stop_writes_the_watch_log():
@@ -94,9 +103,11 @@ def test_every_stop_writes_the_watch_log():
 
 def test_diagnosed_cards_get_the_agent_ops_label():
     work = steps()
-    comment = work[work.index("6. ") : work.index("7. ")]
-    assert f"add the `{LABEL}` label to it with `trello_add_label`" in comment
-    assert comment.index("`trello_comment_card`") < comment.index("`trello_add_label`")
+    mark = work[work.index("6. ") : work.index("7. ")]
+    assert "Mark the card with `trello_mark_diagnosed`" in mark
+    assert f"`{AGENT_OPS_PREFIX} <classification> for run <id>: <one line>`" in mark
+    assert f"posts it as a comment and adds the `{LABEL}` label" in mark
+    assert "it refuses a card outside Blocked" in mark
 
 
 def test_cardless_runs_are_logged_in_the_watch_log():

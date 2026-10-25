@@ -190,19 +190,29 @@ def test_agent_ops_reads_every_other_agents_runs():
     assert len(ops.grant_scopes) == len(WATCHED) + 2
 
 
-def test_agent_ops_writes_its_watch_log_and_labels_but_never_moves():
+GENERIC_TRELLO_WRITES = (
+    "trello_move_card",
+    "trello_comment_card",
+    "trello_create_card",
+    "trello_update_card_description",
+    "trello_add_label",
+    "trello_add_checklist",
+    "trello_check_item",
+    "trello_set_priority",
+)
+
+
+def test_agent_ops_holds_only_narrow_write_tools():
     ops = by_slug("agent-ops")
     assert ops.tools == (
         "trello_list_cards",
         "trello_get_card",
-        "trello_comment_card",
-        "trello_update_card_description",
-        "trello_add_label",
+        "trello_write_watch_log",
+        "trello_mark_diagnosed",
         "telegram_send_message",
         *PLATFORM_TOOLS["kora"],
     )
-    assert "trello_move_card" not in ops.tools
-    assert "trello_create_card" not in ops.tools
+    assert not set(GENERIC_TRELLO_WRITES) & set(ops.tools)
     assert ops.grant_scopes == (
         *(f"agents:runs:{slug}:read" for slug in WATCHED),
         "agents:runs:agent-ops:read",
@@ -270,7 +280,10 @@ def test_pr_finders_can_read_pull_requests():
 
 BOARD_TOOLS = {
     "trello_add_checklist": {"product-owner"},
-    "trello_add_label": {"product-owner", "delivery-lead", "support", "agent-ops"},
+    "trello_add_label": {"product-owner", "delivery-lead", "support"},
+    "trello_update_card_description": {"product-owner"},
+    "trello_write_watch_log": {"agent-ops"},
+    "trello_mark_diagnosed": {"agent-ops"},
     "trello_check_item": {"tester"},
     "trello_set_priority": {"delivery-lead", "support"},
 }

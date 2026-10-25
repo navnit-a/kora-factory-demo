@@ -1,7 +1,7 @@
 from factory_demo.tools_check import SERVERS, expected_tool_names, missing_tools
 
 
-def test_expected_tools_are_the_thirteen_from_the_design():
+def test_expected_tools_are_the_fifteen_from_the_design():
     assert expected_tool_names() == {
         "trello_list_cards",
         "trello_get_card",
@@ -13,11 +13,14 @@ def test_expected_tools_are_the_thirteen_from_the_design():
         "trello_add_checklist",
         "trello_check_item",
         "trello_set_priority",
+        "trello_write_watch_log",
+        "trello_mark_diagnosed",
         "telegram_send_message",
         "transport_sydney_trains_status",
         "places_lunch_nearby",
     }
     assert SERVERS == ("trello", "telegram", "transport", "places")
+    assert len(expected_tool_names()) == 15
 
 
 def test_missing_tools_lists_names_not_yet_listed_by_the_gateway():
@@ -27,7 +30,7 @@ def test_missing_tools_lists_names_not_yet_listed_by_the_gateway():
     assert "telegram_send_message" not in missing
 
 
-def test_missing_tools_is_empty_when_all_thirteen_are_listed():
+def test_missing_tools_is_empty_when_all_fifteen_are_listed():
     listed = {
         "trello": [
             "trello_list_cards",
@@ -40,6 +43,8 @@ def test_missing_tools_is_empty_when_all_thirteen_are_listed():
             "trello_add_checklist",
             "trello_check_item",
             "trello_set_priority",
+            "trello_write_watch_log",
+            "trello_mark_diagnosed",
         ],
         "telegram": ["telegram_send_message"],
         "transport": ["transport_sydney_trains_status"],

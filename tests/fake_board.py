@@ -1,5 +1,5 @@
 from factory_tools.lists import BOARD_LISTS, canonical_name
-from factory_tools.trello.look import LABELS, LANE_STICKERS
+from factory_tools.trello.look import LABELS, LANE_LOOK, LANE_STICKERS, labels_on_create
 
 CANONICAL_LISTS = tuple({"id": f"list-{n}", "name": name} for n, name in enumerate(BOARD_LISTS))
 
@@ -60,6 +60,21 @@ class FakeBoard:
         self.lists = tuple(
             {**item, "name": name} if item["id"] == list_id else item for item in self.lists
         )
+
+    async def create_list(self, name: str, pos: str = "bottom") -> dict:
+        self._write("create_list", name, pos)
+        list_id = f"list-new-{len(self.lists)}"
+        self.lists = (*self.lists, {"id": list_id, "name": name})
+        return {"id": list_id, "name": name}
+
+    async def create(self, list_name: str, title: str, description: str) -> dict:
+        self._write("create", list_name, title, description)
+        label_ids = tuple([await self.ensure_label(n) for n in labels_on_create(title, list_name)])
+        card_id = f"c-new-{len(self.cards)}"
+        cover = LANE_LOOK[list_name].cover
+        fields = {"description": description, "labels": label_ids, "cover": cover}
+        self.cards = {**self.cards, card_id: card(list_name, title, **fields)}
+        return {"id": card_id, "list": list_name}
 
     def list_names(self) -> tuple[str, ...]:
         return tuple(item["name"] for item in self.lists)

@@ -148,6 +148,8 @@ def test_tool_scopes_turn_dots_into_colons():
     assert "mcp:kora:runs:events:use" in scopes
     assert "mcp:kora:triggers:deliveries:list:use" in scopes
     assert "mcp:trello:trello_comment_card:use" in scopes
+    assert "mcp:trello:trello_update_card_description:use" in scopes
+    assert "mcp:trello:trello_add_label:use" in scopes
 
 
 def test_agent_request_carries_grant_scopes_and_resources():

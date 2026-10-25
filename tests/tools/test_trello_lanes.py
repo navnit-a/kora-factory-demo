@@ -38,6 +38,7 @@ DISPLAY_LISTS = [
     {"id": "l-testing", "name": "🧪 Testing · tester proves"},
     {"id": "l-done", "name": "✅ Done · shipped"},
     {"id": "l-blocked", "name": "⛔ Blocked · needs a human"},
+    {"id": "l-agent-ops", "name": "🛰 Agent ops · watching the agents"},
 ]
 
 
@@ -53,6 +54,7 @@ def test_list_ids_maps_display_names_to_canonical():
         "Testing": "l-testing",
         "Done": "l-done",
         "Blocked": "l-blocked",
+        "Agent ops": "l-agent-ops",
     }
 
 
@@ -261,3 +263,29 @@ def test_move_to_a_lane_without_cover_clears_it_and_adds_no_sticker():
     run(client().move_with_reason(CARD, "Backlog", "Unblocked: back to the queue"))
     assert body(routes["put"].calls[1].request) == {"cover": {"color": None}}
     assert warning.called and not routes["add_sticker"].called
+
+
+@respx.mock
+def test_create_list_posts_name_board_and_position_in_the_query():
+    route = respx.post(f"{API}/lists").mock(
+        return_value=httpx.Response(200, json={"id": "l-new", "name": "x"})
+    )
+    created = run(client().create_list("🛰 Agent ops · watching the agents"))
+    request = route.calls[0].request
+    assert dict(request.url.params) == {
+        "name": "🛰 Agent ops · watching the agents",
+        "idBoard": "board",
+        "pos": "bottom",
+        "key": "key",
+        "token": "token",
+    }
+    assert request.content == b""
+    assert created == {"id": "l-new", "name": "🛰 Agent ops · watching the agents"}
+
+
+@respx.mock
+def test_create_list_takes_a_position_and_needs_an_id_back():
+    route = respx.post(f"{API}/lists").mock(return_value=httpx.Response(200, json={}))
+    with pytest.raises(ToolError, match="did not return an id for the new list"):
+        run(client().create_list("Parking lot", pos="top"))
+    assert route.calls[0].request.url.params["pos"] == "top"

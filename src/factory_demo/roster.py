@@ -333,7 +333,14 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Reads the other agents' runs, names refused grants to the operator and proposes "
         "prompt fixes as pull requests.",
         SONNET,
-        (*TRELLO_READ, "trello_comment_card", *TELEGRAM, *PLATFORM_TOOLS["kora"]),
+        (
+            *TRELLO_READ,
+            "trello_comment_card",
+            "trello_update_card_description",
+            "trello_add_label",
+            *TELEGRAM,
+            *PLATFORM_TOOLS["kora"],
+        ),
         ("contents:read", "contents:write", "pulls:read", "pulls:write"),
         PYTHON_TOOLS,
         0.40,

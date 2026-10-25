@@ -18,6 +18,7 @@ LISTS = [
     {"id": "l-testing", "name": "Testing"},
     {"id": "l-done", "name": "Done"},
     {"id": "l-blocked", "name": "Blocked"},
+    {"id": "l-agent-ops", "name": "Agent ops"},
 ]
 
 

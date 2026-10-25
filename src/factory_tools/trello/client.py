@@ -61,6 +61,11 @@ class TrelloClient:
     async def rename_list(self, list_id: str, name: str) -> None:
         await self._write("PUT", f"/lists/{list_id}", {"name": name})
 
+    async def create_list(self, name: str, pos: str = "bottom") -> dict:
+        query = {"name": name, "idBoard": self.board_id, "pos": pos}
+        reply = await self._send_write("POST", "/lists", query)
+        return {"id": look_client.required_id(reply, "list"), "name": name}
+
     async def cards_in(self, list_name: str, limit: int) -> list[dict]:
         list_id = lists_client.list_id(await self.board_lists(), list_name)
         cards = await self._read(
@@ -161,9 +166,12 @@ class TrelloClient:
     async def _write_json(self, method: str, path: str, payload: dict) -> dict:
         return await self._send_write(method, path, json=payload)
 
-    async def _send_write(self, method: str, path: str, **body: dict) -> dict:
+    async def _send_write(
+        self, method: str, path: str, query: dict[str, str] | None = None, **body: dict
+    ) -> dict:
+        params = {**(query or {}), **self._auth()}
         response = await request(
-            self.http, "Trello", method, API + path, WRITE_HINT, params=self._auth(), **body
+            self.http, "Trello", method, API + path, WRITE_HINT, params=params, **body
         )
         reply = json_or_error(response, "Trello", WRITE_HINT)
         return reply if isinstance(reply, dict) else {}

@@ -40,10 +40,11 @@ First time, or after `make reset`:
     the `factory-tools` Secret and the four servers, and waits for them. kora registers each as an
     `MCPServer`; `kubectl get mcpservers -n kora-tenant-example` must show all four `Aggregated`.
 11. `uv run python scripts/dress-board.py --dry-run` prints the plan and writes nothing: first the
-    lanes it would rename to their display names, then the labels it would name or create, the cards
-    whose plain colour labels gain a name, and how many cards it would dress and checklists it would
-    add. When the plan looks right, run it again without `--dry-run`. It renames the lanes, names the
-    labels and gives every open card its lane's cover and sticker, its labels with its lane's actor
+    lanes it would create or rename to their display names, then the labels it would name or create,
+    the watch log card it would create, the cards whose plain colour labels gain a name, and how
+    many cards it would dress and checklists it would add. When the plan looks right, run it again
+    without `--dry-run`. It creates a missing lane at the right of the board and the
+    `🛰 Agent ops watch log` card, renames the lanes, names the labels and gives every open card its lane's cover and sticker, its labels with its lane's actor
     label, any stale actor label removed, and, where the description has criteria, its Acceptance
     criteria checklist. A second run touches only lanes and cards that have drifted. If it stops on a
     Trello rate limit, run it again; it is idempotent.
@@ -126,6 +127,10 @@ The Trello tool server dresses a card on every move and create, so the board rea
 | Testing | 🧪 Testing · tester proves | 🧪 Tester | lime | thumbsup, the reviewer approved |
 | Done | ✅ Done · shipped | none | green | check |
 | Blocked | ⛔ Blocked · needs a human | 🙋 Needs a human | red | warning |
+| Agent ops | 🛰 Agent ops · watching the agents | 🛰 Agent ops | black | none |
+
+The Agent ops lane holds one card, `🛰 Agent ops watch log`, whose description agent ops rewrites
+after every run with what it read, found and did, and no card moves into or out of it.
 
 Every move puts the destination lane's actor label on the card and takes the previous one off, so
 the card always says who has it. The move comment is signed by the agent that moves the card,
@@ -144,10 +149,11 @@ Labels say what a card is and what it needs. Idea (sky) marks a card in Ideas; S
 label and a star sticker for urgent work. Depends on (orange) means a named prerequisite is not Done
 yet. Shipped (green) is added when a card reaches Done. Proposed via Telegram (pink) marks an idea
 that came through the idea door; the idea door adds it when the card is created. Fixture (black)
-marks a card an evaluation made. The six actor labels say who has the card, each in the dark shade
-of its lane's cover so Trello shows it on the card front: 💡 Product owner (sky_dark), 📋 Delivery
-lead (yellow_dark), 🤖 Senior developer (purple_dark), 🔍 Code reviewer (orange_dark), 🧪 Tester
-(lime_dark) and 🙋 Needs a human (red_dark). The product owner writes the criteria into an Acceptance criteria checklist and
+marks a card an evaluation made. The six lane actor labels say who has the card, each in the dark
+shade of its lane's cover so Trello shows it on the card front: 💡 Product owner (sky_dark),
+📋 Delivery lead (yellow_dark), 🤖 Senior developer (purple_dark), 🔍 Code reviewer (orange_dark),
+🧪 Tester (lime_dark) and 🙋 Needs a human (red_dark). 🛰 Agent ops (blue_light) marks the watch log
+and every card agent ops has commented on; the next move takes it off like any actor label. The product owner writes the criteria into an Acceptance criteria checklist and
 the tester ticks them.
 
 ## Working agreements

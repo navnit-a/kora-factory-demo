@@ -8,7 +8,13 @@ from pydantic import Field
 
 from factory_tools.lists import BOARD_LISTS, ListName
 from factory_tools.trello.client import TrelloClient
-from factory_tools.trello.look import ACTOR_LABEL_NAMES, CHECKLIST_NAME, LABELS, LabelName
+from factory_tools.trello.look import (
+    ACTOR_LABEL_NAMES,
+    AGENT_OPS_LABEL,
+    CHECKLIST_NAME,
+    LABELS,
+    LabelName,
+)
 
 TRELLO_TEXT_LIMIT = 16384
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
@@ -21,7 +27,9 @@ LABEL_DESCRIPTION = (
     + ", ".join(name for name in LABELS if name not in ACTOR_LABEL_NAMES)
     + ". The actor labels ("
     + ", ".join(name for name in LABELS if name in ACTOR_LABEL_NAMES)
-    + ") are set by moves; never add one by hand."
+    + ") are set by moves; never add one by hand, except "
+    + AGENT_OPS_LABEL
+    + ", which agent ops adds to a card it commented on."
 )
 Criterion = Annotated[str, Field(min_length=3, max_length=200)]
 CardId = Annotated[
@@ -121,7 +129,8 @@ async def trello_update_card_description(
 @mcp.tool(
     annotations=WRITE,
     description="Add a named label to a card; the board's colour for it is applied. Used by the "
-    "product owner (type, Proposed via Telegram), the delivery lead and support (Depends on). "
+    "product owner (type, Proposed via Telegram), the delivery lead and support (Depends on), "
+    f"and agent ops ({AGENT_OPS_LABEL}). "
     "Moves and creates already set the type, Shipped and the lane look.",
 )
 async def trello_add_label(

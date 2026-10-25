@@ -22,10 +22,11 @@ DISPLAY_NAMES = (
     "🧪 Testing · tester proves",
     "✅ Done · shipped",
     "⛔ Blocked · needs a human",
+    "🛰 Agent ops · watching the agents",
 )
 
 
-def test_board_lists_are_the_eight_in_board_order():
+def test_board_lists_are_the_nine_in_board_order():
     assert BOARD_LISTS == (
         "Ideas",
         "Backlog",
@@ -35,6 +36,7 @@ def test_board_lists_are_the_eight_in_board_order():
         "Testing",
         "Done",
         "Blocked",
+        "Agent ops",
     )
 
 
@@ -59,6 +61,7 @@ def test_lanes_name_their_actor():
         "Testing": "🧪 Tester",
         "Done": None,
         "Blocked": "🙋 Needs a human",
+        "Agent ops": "🛰 Agent ops",
     }
 
 
@@ -84,6 +87,14 @@ def test_canonical_name_accepts_plain_names():
     assert tuple(canonical_name(name) for name in BOARD_LISTS) == BOARD_LISTS
     assert canonical_name("in progress") == "In Progress"
     assert canonical_name(" Blocked ") == "Blocked"
+
+
+def test_agent_ops_lane_comes_last_and_matches_its_display_name():
+    assert LANES[-1].name == "Agent ops"
+    assert display_name("Agent ops") == "🛰 Agent ops · watching the agents"
+    assert canonical_name("🛰 Agent ops · watching the agents") == "Agent ops"
+    assert canonical_name("🛰️ agent OPS") == "Agent ops"
+    assert canonical_name("Agent ops watch log") is None
 
 
 @pytest.mark.parametrize(

@@ -190,6 +190,26 @@ def test_agent_ops_reads_every_other_agents_runs():
     assert len(ops.grant_scopes) == len(WATCHED) + 2
 
 
+def test_agent_ops_writes_its_watch_log_and_labels_but_never_moves():
+    ops = by_slug("agent-ops")
+    assert ops.tools == (
+        "trello_list_cards",
+        "trello_get_card",
+        "trello_comment_card",
+        "trello_update_card_description",
+        "trello_add_label",
+        "telegram_send_message",
+        *PLATFORM_TOOLS["kora"],
+    )
+    assert "trello_move_card" not in ops.tools
+    assert "trello_create_card" not in ops.tools
+    assert ops.grant_scopes == (
+        *(f"agents:runs:{slug}:read" for slug in WATCHED),
+        "agents:runs:agent-ops:read",
+        "triggers:read",
+    )
+
+
 def test_agent_ops_quiet_cron_is_hourly():
     assert by_slug("agent-ops").schedules == (
         Schedule("every 30 min", "12-59/30 * * * *", "12 * * * *", CARD_TICK, True),
@@ -250,7 +270,7 @@ def test_pr_finders_can_read_pull_requests():
 
 BOARD_TOOLS = {
     "trello_add_checklist": {"product-owner"},
-    "trello_add_label": {"product-owner", "delivery-lead", "support"},
+    "trello_add_label": {"product-owner", "delivery-lead", "support", "agent-ops"},
     "trello_check_item": {"tester"},
     "trello_set_priority": {"delivery-lead", "support"},
 }

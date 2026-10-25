@@ -19,6 +19,7 @@ LANE_LOOK: dict[str, LaneLook] = {
     "Testing": LaneLook("lime", "thumbsup"),
     "Done": LaneLook("green", "check"),
     "Blocked": LaneLook("red", "warning"),
+    "Agent ops": LaneLook("black", None),
 }
 ACTOR_LABELS: dict[str, str | None] = {lane.name: lane.actor for lane in LANES}
 ACTOR_LABEL_NAMES = frozenset(actor for actor in ACTOR_LABELS.values() if actor)
@@ -29,6 +30,7 @@ ACTOR_COLOURS: dict[str, str] = {
     "🔍 Code reviewer": "orange_dark",
     "🧪 Tester": "lime_dark",
     "🙋 Needs a human": "red_dark",
+    "🛰 Agent ops": "blue_light",
 }
 LABELS: dict[str, str] = {
     "Idea": "sky",
@@ -58,6 +60,7 @@ LabelName = Literal[
     "🔍 Code reviewer",
     "🧪 Tester",
     "🙋 Needs a human",
+    "🛰 Agent ops",
 ]
 LANE_STICKERS = frozenset({"rocketship", "thumbsup", "check", "warning"})
 STAR = "star"
@@ -74,6 +77,9 @@ READY = "Ready"
 IN_PROGRESS = "In Progress"
 BACKLOG = "Backlog"
 IDEAS = "Ideas"
+AGENT_OPS = "Agent ops"
+AGENT_OPS_LABEL = "🛰 Agent ops"
+UNTYPED_LANES = frozenset({AGENT_OPS})
 IDEA = "Idea"
 FIXTURE = "Fixture"
 UNBLOCKED = "Unblocked:"
@@ -92,6 +98,8 @@ def type_label(title: str, list_name: str) -> str:
 
 
 def labels_on_create(title: str, list_name: str) -> tuple[str, ...]:
+    if list_name in UNTYPED_LANES:
+        return _actor(list_name)
     label = type_label(title, list_name)
     fixture = (FIXTURE,) if FIXTURE_TAG in title and label != FIXTURE else ()
     return (label, *fixture, *_actor(list_name))

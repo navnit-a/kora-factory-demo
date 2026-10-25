@@ -66,7 +66,7 @@ READS = {
     "code-reviewer": {"Review"},
     "tester": {"Testing"},
     "support": {"Backlog", "Ready", "In Progress", "Review", "Testing", "Done", "Blocked"},
-    "agent-ops": {"Blocked"},
+    "agent-ops": {"Blocked", "Agent ops"},
 }
 MOVES = {
     "product-owner": {"Backlog", "Blocked"},

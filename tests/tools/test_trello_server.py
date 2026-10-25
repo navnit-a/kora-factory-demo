@@ -177,6 +177,7 @@ def test_label_description_says_actor_labels_are_set_by_moves_not_by_hand():
     assert "set by moves" in description
     assert "never add one by hand" in description
     assert "🙋 Needs a human" in description
+    assert "except 🛰 Agent ops, which agent ops adds to a card it commented on" in description
 
 
 @respx.mock

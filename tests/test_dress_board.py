@@ -29,6 +29,7 @@ PALETTE_PLAN = (
     ("create", "🔍 Code reviewer", "orange_dark"),
     ("create", "🧪 Tester", "lime_dark"),
     ("create", "🙋 Needs a human", "red_dark"),
+    ("create", "🛰 Agent ops", "blue_light"),
     ("rename", "Ready", "yellow"),
 )
 BOARD_PLAN = tuple(
@@ -36,6 +37,8 @@ BOARD_PLAN = tuple(
     for action, name, colour in PALETTE_PLAN
 )
 RENAMED_ALL = tuple((name, display_name(name)) for name in BOARD_LISTS)
+WATCH_LOG = "🛰 Agent ops watch log"
+WATCH_LOG_DESCRIPTION = "Agent ops writes what it checked and found here after every run."
 DESCRIPTION = (
     "As an attendee I want to filter by track.\n\n"
     "Acceptance Criteria:\n"
@@ -132,8 +135,8 @@ async def test_dress_board_applies_the_look_to_every_card():
     trello = board()
     report = await dress(trello, dry_run=False)
     cards = trello.cards
-    assert report == DressReport(BOARD_PLAN, 6, 2, (), RENAMED_ALL)
-    assert report.lists_renamed == 8
+    assert report == DressReport(BOARD_PLAN, 6, 2, (), RENAMED_ALL, (), (WATCH_LOG,))
+    assert report.lists_renamed == 9
     assert {label["name"] for label in trello.labels.values()} >= {"Story", "Ready", "Fixture"}
     assert trello.names("c-idea") == ("Idea", "💡 Product owner")
     assert cards["c-review"]["cover"] == "orange"
@@ -250,7 +253,7 @@ async def test_dress_renames_lanes_once():
         UNNAMED, {"c-plain": card("Backlog", "Share my agenda")}, PARTLY_DRESSED_LISTS
     )
     first = await dress(trello, dry_run=False)
-    assert first.lists_renamed == 7
+    assert first.lists_renamed == 8
     assert ("Ideas", "💡 Ideas · product owner shapes") in first.renamed_lanes
     assert all(old != "Done" for old, _ in first.renamed_lanes)
     assert set(trello.list_names()) == {
@@ -267,7 +270,7 @@ async def test_dress_renames_lanes_once():
 async def test_dry_run_renames_no_lane():
     trello = FakeBoard(UNNAMED, {}, PARTLY_DRESSED_LISTS)
     planned = await dress(trello, dry_run=True)
-    assert planned.lists_renamed == 7
+    assert planned.lists_renamed == 8
     assert trello.writes == ()
     assert "Ideas" in trello.list_names()
 
@@ -301,3 +304,64 @@ async def test_dress_fixes_stale_actor_labels():
     trello.writes = ()
     again = await dress(trello, dry_run=False)
     assert again.cards_dressed == 0 and trello.writes == ()
+
+
+WITHOUT_AGENT_OPS = tuple(
+    {"id": f"list-{n}", "name": display_name(name)}
+    for n, name in enumerate(BOARD_LISTS)
+    if name != "Agent ops"
+)
+
+
+def watch_logs(trello: FakeBoard) -> list[dict]:
+    return [c for c in trello.cards.values() if c["title"] == WATCH_LOG]
+
+
+async def test_dress_creates_the_agent_ops_lane_and_its_watch_log_once():
+    trello = FakeBoard(UNNAMED, {}, WITHOUT_AGENT_OPS)
+    first = await dress(trello, dry_run=False)
+    assert first.created_lanes == ("🛰 Agent ops · watching the agents",)
+    assert first.created_cards == (WATCH_LOG,)
+    assert trello.list_names()[-1] == "🛰 Agent ops · watching the agents"
+    assert ("create_list", "🛰 Agent ops · watching the agents", "bottom") in trello.writes
+    assert ("create", "Agent ops", WATCH_LOG, WATCH_LOG_DESCRIPTION) in trello.writes
+    [log] = watch_logs(trello)
+    assert log["list"] == "Agent ops" and log["cover"] == "black"
+    assert log["description"] == WATCH_LOG_DESCRIPTION
+    assert tuple(trello.labels[i]["name"] for i in log["labels"]) == ("🛰 Agent ops",)
+    trello.writes = ()
+    again = await dress(trello, dry_run=False)
+    assert (again.created_lanes, again.created_cards, again.cards_dressed) == ((), (), 0)
+    assert trello.writes == ()
+    assert len(watch_logs(trello)) == 1
+
+
+async def test_dry_run_reports_the_lane_and_card_it_would_create():
+    trello = FakeBoard(UNNAMED, {}, WITHOUT_AGENT_OPS)
+    planned = await dress(trello, dry_run=True)
+    assert trello.writes == ()
+    lines = report_lines(planned, dry_run=True)
+    assert "create lane 🛰 Agent ops · watching the agents" in lines
+    assert f"create card {WATCH_LOG}" in lines
+    assert lines.index("create lane 🛰 Agent ops · watching the agents") == 0
+    assert planned == await dress(FakeBoard(UNNAMED, {}, WITHOUT_AGENT_OPS), dry_run=False)
+
+
+async def test_dress_keeps_an_existing_watch_log_and_dresses_it():
+    trello = FakeBoard(UNNAMED, {"c-log": card("Agent ops", WATCH_LOG, labels=("l-blue",))})
+    report = await dress(trello, dry_run=False)
+    assert report.created_cards == ()
+    assert len(watch_logs(trello)) == 1
+    assert trello.cards["c-log"]["cover"] == "black"
+    assert trello.names("c-log") == ("Story", "🛰 Agent ops")
+
+
+async def test_dress_leaves_the_agent_ops_label_on_a_card_it_diagnosed():
+    labels = {**UNNAMED, "l-ops": {"name": "🛰 Agent ops", "color": "blue_light"}}
+    blocked = card(
+        "Blocked", "Share my agenda", labels=("l-ops",), cover="red", stickers=("warning",)
+    )
+    trello = FakeBoard(labels, {"c-blocked": blocked})
+    await dress(trello, dry_run=False)
+    assert trello.names("c-blocked") == ("🛰 Agent ops", "Story", "🙋 Needs a human")
+    assert not [call for call in trello.writes if call[0] == "remove_label"]

@@ -10,7 +10,7 @@ from factory_demo.dress_card import (
     resolve_labels,
 )
 from factory_tools.lists import BOARD_LISTS, canonical_name, display_name
-from factory_tools.trello.look import DEPENDS_ON, LABELS, LANE_STICKERS, SHIPPED
+from factory_tools.trello.look import AGENT_OPS, DEPENDS_ON, LABELS, LANE_STICKERS, SHIPPED
 
 __all__ = [
     "DressReport",
@@ -28,6 +28,9 @@ COLOUR_NAMES = dict(blue="Story", green=SHIPPED, orange=DEPENDS_ON, purple="Spik
 RENAMES = {**COLOUR_NAMES, READY_COLOUR: READY}
 RENAME = "rename"
 RELABEL_HEADER = "Cards whose colour label becomes:"
+CREATE = "create"
+WATCH_LOG_TITLE = "🛰 Agent ops watch log"
+WATCH_LOG_DESCRIPTION = "Agent ops writes what it checked and found here after every run."
 
 LabelAction = tuple[str, str, str]
 LaneRename = tuple[str, str, str]
@@ -40,6 +43,8 @@ class DressReport:
     checklists_added: int
     relabelled_cards: tuple[tuple[str, str], ...]
     renamed_lanes: tuple[tuple[str, str], ...] = ()
+    created_lanes: tuple[str, ...] = ()
+    created_cards: tuple[str, ...] = ()
 
     @property
     def lists_renamed(self) -> int:
@@ -51,7 +56,7 @@ def _label_action(name: str, colour: str, named: set[str], unnamed: set[str]) ->
         return ("keep", name, colour)
     if RENAMES.get(colour) == name and colour in unnamed:
         return (RENAME, name, colour)
-    return ("create", name, colour)
+    return (CREATE, name, colour)
 
 
 def plan_labels(existing: dict[str, dict]) -> tuple[LabelAction, ...]:
@@ -72,6 +77,21 @@ def plan_lanes(lists: list[dict]) -> tuple[LaneRename, ...]:
     )
 
 
+def present_lanes(lists: list[dict]) -> tuple[str, ...]:
+    found = {canonical_name(item["name"]) for item in lists}
+    return tuple(lane for lane in BOARD_LISTS if lane in found)
+
+
+def plan_new_lanes(lists: list[dict]) -> tuple[str, ...]:
+    present = present_lanes(lists)
+    return tuple(display_name(lane) for lane in BOARD_LISTS if lane not in present)
+
+
+def plan_watch_log(states: tuple[CardState, ...]) -> tuple[str, ...]:
+    found = any(s.lane == AGENT_OPS and s.title == WATCH_LOG_TITLE for s in states)
+    return () if found else (WATCH_LOG_TITLE,)
+
+
 def renamed_colours(plan: tuple[LabelAction, ...]) -> dict[str, str]:
     return {colour: name for action, name, colour in plan if action == RENAME}
 
@@ -86,7 +106,7 @@ async def _apply_labels(trello: Any, plan: tuple[LabelAction, ...], existing: di
     for action, name, colour in plan:
         if action == RENAME:
             await trello.rename_label(_unnamed_id(existing, colour), name)
-        elif action == "create":
+        elif action == CREATE:
             await trello.ensure_label(name)
 
 
@@ -110,9 +130,11 @@ async def _card_state(trello: Any, summary: dict, lane: str, renamed: dict) -> C
     )
 
 
-async def _card_states(trello: Any, renamed: dict[str, str]) -> tuple[CardState, ...]:
+async def _card_states(
+    trello: Any, renamed: dict[str, str], lanes: tuple[str, ...]
+) -> tuple[CardState, ...]:
     states: tuple[CardState, ...] = ()
-    for lane in BOARD_LISTS:
+    for lane in lanes:
         for summary in await trello.cards_in(lane, LANE_LIMIT):
             states = (*states, await _card_state(trello, summary, lane, renamed))
     return states
@@ -136,21 +158,35 @@ async def _apply_lanes(trello: Any, lanes: tuple[LaneRename, ...]) -> None:
         await trello.rename_list(list_id, name)
 
 
+async def _apply_new_lanes(trello: Any, names: tuple[str, ...]) -> None:
+    for name in names:
+        await trello.create_list(name, pos="bottom")
+
+
+async def _apply_new_cards(trello: Any, titles: tuple[str, ...]) -> None:
+    for title in titles:
+        await trello.create(AGENT_OPS, title, WATCH_LOG_DESCRIPTION)
+
+
 async def dress(trello: Any, dry_run: bool) -> DressReport:
-    lanes = plan_lanes(await trello.board_lists())
+    lists = await trello.board_lists()
+    lanes, new_lanes = plan_lanes(lists), plan_new_lanes(lists)
     existing = await trello.label_records()
     labels = plan_labels(existing)
-    states = await _card_states(trello, renamed_colours(labels))
+    states = await _card_states(trello, renamed_colours(labels), present_lanes(lists))
     plans = tuple(plan for plan in map(plan_card, states) if plan.changes)
+    new_cards = plan_watch_log(states)
     if not dry_run:
         await _apply_lanes(trello, lanes)
+        await _apply_new_lanes(trello, new_lanes)
         await _apply_labels(trello, labels, existing)
         for plan in plans:
             await _apply_card(trello, plan)
+        await _apply_new_cards(trello, new_cards)
     relabelled = tuple(sorted((s.title, name) for s in states for name in s.relabelled))
     checklists = sum(1 for plan in plans if plan.criteria)
     renamed = tuple((raw, name) for _, raw, name in lanes)
-    return DressReport(labels, len(plans), checklists, relabelled, renamed)
+    return DressReport(labels, len(plans), checklists, relabelled, renamed, new_lanes, new_cards)
 
 
 def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
@@ -160,11 +196,14 @@ def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
 
 
 def report_lines(report: DressReport, dry_run: bool) -> tuple[str, ...]:
+    created = tuple(f"{CREATE} lane {name}" for name in report.created_lanes)
     lanes = tuple(f"{RENAME} lane {old} → {new}" for old, new in report.renamed_lanes)
     actions = tuple(f"{action} label {name} ({colour})" for action, name, colour in report.labels)
+    cards = tuple(f"{CREATE} card {title}" for title in report.created_cards)
     counts = (
         f"{report.cards_dressed} card(s) dressed",
         f"{report.checklists_added} checklist(s) added",
     )
     note = ("dry run: nothing was written",) if dry_run else ()
-    return (*lanes, *actions, *_relabel_lines(report.relabelled_cards), *counts, *note)
+    relabels = _relabel_lines(report.relabelled_cards)
+    return (*created, *lanes, *actions, *cards, *relabels, *counts, *note)

@@ -22,12 +22,13 @@ LANES: tuple[Lane, ...] = (
     Lane("Testing", "🧪 Testing · tester proves", "🧪 Tester"),
     Lane("Done", "✅ Done · shipped", None),
     Lane("Blocked", "⛔ Blocked · needs a human", "🙋 Needs a human"),
+    Lane("Agent ops", "🛰 Agent ops · watching the agents", "🛰 Agent ops"),
 )
 
 BOARD_LISTS: tuple[str, ...] = tuple(lane.name for lane in LANES)
 
 ListName = Literal[
-    "Ideas", "Backlog", "Ready", "In Progress", "Review", "Testing", "Done", "Blocked"
+    "Ideas", "Backlog", "Ready", "In Progress", "Review", "Testing", "Done", "Blocked", "Agent ops"
 ]
 
 LANES_BY_FOLDED_NAME: dict[str, Lane] = {lane.name.casefold(): lane for lane in LANES}

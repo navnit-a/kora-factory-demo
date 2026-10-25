@@ -30,6 +30,7 @@ ACTORS = {
     "🔍 Code reviewer": "orange_dark",
     "🧪 Tester": "lime_dark",
     "🙋 Needs a human": "red_dark",
+    "🛰 Agent ops": "blue_light",
 }
 
 
@@ -44,6 +45,7 @@ def test_lane_look_covers_every_list():
         "Testing": LaneLook("lime", "thumbsup"),
         "Done": LaneLook("green", "check"),
         "Blocked": LaneLook("red", "warning"),
+        "Agent ops": LaneLook("black", None),
     }
     assert expected == LANE_LOOK
     assert {look.sticker for look in LANE_LOOK.values()} - {None} == LANE_STICKERS
@@ -118,6 +120,7 @@ def test_actor_labels_cover_every_lane():
         "Testing": "🧪 Tester",
         "Done": None,
         "Blocked": "🙋 Needs a human",
+        "Agent ops": "🛰 Agent ops",
     }
     assert set(ACTOR_LABELS) == set(BOARD_LISTS)
     assert frozenset(ACTORS) == ACTOR_LABEL_NAMES
@@ -153,6 +156,10 @@ def test_create_carries_the_lanes_actor_label():
         "📋 Delivery lead",
     )
     assert labels_on_create("Ship it", "Done") == ("Story",)
+
+
+def test_the_watch_log_lane_gives_its_card_no_type_label():
+    assert labels_on_create("🛰 Agent ops watch log", "Agent ops") == ("🛰 Agent ops",)
 
 
 def test_signed_reason_formats_mover_destination_and_reason():

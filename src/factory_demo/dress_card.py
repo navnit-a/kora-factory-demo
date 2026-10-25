@@ -3,12 +3,14 @@ from dataclasses import dataclass
 from factory_tools.lists import actor_label
 from factory_tools.trello.look import (
     ACTOR_LABEL_NAMES,
+    AGENT_OPS_LABEL,
     DEPENDS_ON,
     DONE,
     FIXTURE_TAG,
     LANE_LOOK,
     SHIPPED,
     UNBLOCKED,
+    UNTYPED_LANES,
     type_label,
 )
 
@@ -84,8 +86,14 @@ def names_prerequisite(comment: str) -> bool:
     return any(word in lowered for word in DEPENDENCY_WORDS)
 
 
+def _typed(state: CardState) -> tuple[str, ...]:
+    if state.lane in UNTYPED_LANES or TYPE_LABELS & set(state.labels):
+        return ()
+    return (type_label(state.title, state.lane),)
+
+
 def wanted_labels(state: CardState) -> tuple[str, ...]:
-    typed = () if TYPE_LABELS & set(state.labels) else (type_label(state.title, state.lane),)
+    typed = _typed(state)
     fixture = (FIXTURE,) if FIXTURE_TAG in state.title else ()
     shipped = (SHIPPED,) if state.lane == DONE else ()
     depends = (DEPENDS_ON,) if names_prerequisite(state.last_comment) else ()
@@ -101,7 +109,7 @@ def stale_actors(state: CardState) -> tuple[str, ...]:
     return tuple(
         name
         for name in state.labels
-        if name in ACTOR_LABEL_NAMES and name not in _actor(state.lane)
+        if name in ACTOR_LABEL_NAMES - {AGENT_OPS_LABEL} and name not in _actor(state.lane)
     )
 
 

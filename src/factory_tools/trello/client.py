@@ -91,6 +91,11 @@ class TrelloClient:
         await self._write("PUT", f"/cards/{card_id}", {"desc": text})
         return {"id": card_id, "description_updated": True}
 
+    async def archive(self, card_id: str) -> dict:
+        await self._board_card(card_id, "idBoard")
+        await self._write("PUT", f"/cards/{card_id}", {"closed": "true"})
+        return {"id": card_id, "archived": True}
+
     async def _board_card(self, card_id: str, fields: str) -> dict:
         if not CARD_ID.match(card_id):
             raise ToolError(

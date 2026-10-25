@@ -254,3 +254,45 @@ def test_non_json_reply_is_a_tool_error_with_a_next_step():
     )
     with pytest.raises(ToolError, match="Trello sent a reply that is not JSON"):
         run(client().list_ids())
+
+
+CARD = "0123456789abcdef0123456a"
+
+
+@respx.mock
+def test_archive_closes_a_card_on_the_board():
+    respx.get(f"{API}/cards/{CARD}").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "idBoard": "board"})
+    )
+    put = respx.put(f"{API}/cards/{CARD}").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "closed": True})
+    )
+    assert run(client().archive(CARD)) == {"id": CARD, "archived": True}
+    assert form(put.calls[0].request) == {"closed": "true"}
+
+
+@respx.mock
+def test_archive_refuses_a_card_on_another_board():
+    respx.get(f"{API}/cards/{CARD}").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "idBoard": "elsewhere"})
+    )
+    with pytest.raises(ToolError, match="not on the factory board"):
+        run(client().archive(CARD))
+
+
+@respx.mock
+def test_archive_failure_never_shows_the_credentials():
+    respx.get(f"{API}/cards/{CARD}").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "idBoard": "board"})
+    )
+    respx.put(f"{API}/cards/{CARD}").mock(return_value=httpx.Response(500, text="oops"))
+    with pytest.raises(ToolError) as caught:
+        run(client().archive(CARD))
+    assert "token" not in str(caught.value)
+    assert "key=" not in str(caught.value)
+
+
+def test_no_tool_can_archive():
+    from factory_demo.tools_check import expected_tool_names
+
+    assert not [name for name in expected_tool_names() if "archive" in name or "delete" in name]

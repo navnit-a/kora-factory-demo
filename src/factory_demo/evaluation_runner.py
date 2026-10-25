@@ -9,7 +9,7 @@ import httpx
 from factory_demo.evaluation import FIXTURES, Fixture, Outcome, Verdict, is_fixture, judge
 from factory_demo.roster import by_slug
 from factory_demo.telegram_preview import parse_posts
-from factory_tools.trello.client import API, TrelloClient
+from factory_tools.trello.client import TrelloClient
 
 LANE_LIMIT = 50
 NEW_CARD_LANE = "Backlog"
@@ -44,12 +44,7 @@ class EvaluationBoard:
         return await self.trello.card(card_id)
 
     async def archive(self, card_id: str) -> None:
-        response = await self.trello.http.put(
-            f"{API}/cards/{card_id}",
-            params={"key": self.trello.key, "token": self.trello.token},
-            data={"closed": "true"},
-        )
-        response.raise_for_status()
+        await self.trello.archive(card_id)
 
 
 def run_inputs(fixture: Fixture, start: datetime) -> dict[str, str]:

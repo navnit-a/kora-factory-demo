@@ -57,7 +57,10 @@ First time, or after `make reset`:
 14. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
     agent ops runs in, and reports `node-web` as already there. Then
     `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
-    agent ops schedule paused.
+    agent ops schedule paused. Agent ops holds write access to this repository through the GitHub
+    App, and this repository is private, so GitHub refuses rulesets on it. Until the repository is
+    public or has rulesets, do not add `kora-factory-demo` to the App installation: without it
+    GitHub mints no token for this repository and agent ops cannot push, which is the guard.
 
 15. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token through a
     loopback port-forward to the identity service. The token may fire `Idea scout: scout`, read
@@ -98,7 +101,8 @@ in the cluster.
 `uv run --env-file .env python scripts/ideas-bridge.py --once "<idea>" --from <name>` scouts one idea
 and prints the reply without Telegram or the board, as a dry run.
 
-The bridge handles one message at a time, so while one scout runs, other senders wait.
+The bridge handles one message at a time, so while one scout runs, other senders wait. Messages
+sent while the bridge was not running are not answered; send the idea again once it is back.
 
 ## Secrets
 
@@ -156,6 +160,7 @@ committed, pasted into a prompt, or shown on screen.
   developer 0.19 USD for the card and 0.035 for a tick that finds nothing; reviewer 0.11 and 0.034;
   tester 0.01 and 0.002; product owner 0.005 a tick; delivery lead and scrum master 0.002; support
   0.005. An hour of the whole team at recording cadence with nothing to do costs about 0.60 USD.
+  The idea scout costs 0.05 to 0.09 USD a run and agent ops 0.18 USD a run, measured on 25 Oct.
 
 ## Product repo
 

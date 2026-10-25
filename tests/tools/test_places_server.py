@@ -236,3 +236,12 @@ def test_every_request_fits_inside_the_overall_budget(monkeypatch):
     route = respx.post(FIRST).mock(return_value=httpx.Response(200, json=FIXTURE))
     run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     assert route.calls[0].request.extensions["timeout"]["read"] <= 30.0
+
+
+@respx.mock
+def test_second_instance_answers_when_the_first_sends_an_html_busy_page():
+    first = respx.post(FIRST).mock(return_value=httpx.Response(200, text="<html>busy</html>"))
+    second = respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert [p["name"] for p in result["places"]] == ["Corner Cafe", "Harbour Noodle", "Spice Lane"]
+    assert (first.call_count, second.call_count) == (1, 1)

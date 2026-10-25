@@ -222,7 +222,7 @@ def test_tester_step_zero_merges_data_prs_based_on_main_at_their_head():
     rule = flat(DATA_PR_RULE)
     assert "--json number,baseRefName,headRefOid,isCrossRepository" in rule
     assert "`baseRefName` is `main`" in rule
-    assert "--json files,changedFiles` shows `changedFiles` 1" in rule
+    assert "--json files,changedFiles,mergeable` shows `changedFiles` 1" in rule
     for branch, path in ((TRAINS_BRANCH, TRAINS_PATH), (LUNCH_BRANCH, LUNCH_PATH)):
         assert f"`{branch}` with `{path}`" in rule
     assert "exactly `<file>`" in rule
@@ -453,8 +453,8 @@ def test_feed_facts_give_the_data_contract_and_owners():
         "`attribution`",
         '"not available yet"',
         "when the file is missing",
-        "`lunch.json` is until its first data pull request merges",
         "fails to parse",
+        "when the file is missing or fails to parse shows a calm",
         "Sydney Masonic Centre, 66 Goulburn Street, lat -33.8781, lon 151.2090",
         "Museum, 3 min walk, lines T2, T3, T8",
         "Central, 9 min walk, lines T1, T2, T3, T4, T8, T9",

@@ -39,3 +39,17 @@ def test_publish_steps_number_under_an_outer_step():
 def test_publish_steps_create_the_branch_only_when_it_is_missing():
     steps = " ".join(feeds.publish_steps(feeds.LUNCH_BRANCH, feeds.LUNCH_PATH, "t").split())
     assert "returns 422 'Reference does not exist' or 404" in steps
+
+
+def test_publish_steps_validate_the_data_file_before_the_upload():
+    steps = " ".join(feeds.publish_steps(feeds.TRAINS_BRANCH, feeds.TRAINS_PATH, "t").split())
+    upload = steps.index(f"-X PUT {feeds.REPO_PATH}/contents/")
+    assert "`python3 -m json.tool data.json > /dev/null`" in steps
+    assert steps.index("python3 -m json.tool") < upload
+    assert "if it fails, stop: do not upload, and reply with the error" in steps
+
+
+def test_data_pr_rule_fetches_mergeable_before_checking_it():
+    rule = " ".join(feeds.DATA_PR_RULE.split())
+    assert "--json files,changedFiles,mergeable`" in rule
+    assert rule.index("--json files,changedFiles,mergeable") < rule.index("`mergeable` is not")

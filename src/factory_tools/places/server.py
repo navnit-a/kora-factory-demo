@@ -95,7 +95,10 @@ async def _overpass(query: str) -> dict:
 
 async def _from_instance(http: httpx.AsyncClient, url: str, query: str, deadline: float) -> dict:
     response = await _post_with_retries(http, url, query, deadline, RETRY_DELAYS_S)
-    payload = json_or_error(response, "Overpass", OVERPASS_HINT)
+    try:
+        payload = json_or_error(response, "Overpass", OVERPASS_HINT)
+    except ToolError as error:
+        raise InstanceUnavailable(str(error)) from error
     if "runtime error" in str(payload.get("remark", "")):
         raise InstanceUnavailable(OVERPASS_HINT)
     return payload

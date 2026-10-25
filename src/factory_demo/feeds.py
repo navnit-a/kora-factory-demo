@@ -15,9 +15,9 @@ DATA_PR_RULE = f"""Before the card work, in a sandbox, merge data pull requests.
 `gh pr list --repo {PRODUCT_REPO} --head <head> --state open
 --json number,baseRefName,headRefOid,isCrossRepository`. Merge one only when `baseRefName` is
 `main`, `isCrossRepository` is false,
-`gh pr view <number> --repo {PRODUCT_REPO} --json files,changedFiles` shows `changedFiles` 1
-and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on its
-`headRefOid` and `mergeable` is not `CONFLICTING`: step 6's merge with `sha=<headRefOid>`,
+`gh pr view <number> --repo {PRODUCT_REPO} --json files,changedFiles,mergeable` shows
+`changedFiles` 1 and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on
+its `headRefOid` and `mergeable` is not `CONFLICTING`: step 6's merge with `sha=<headRefOid>`,
 confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
 Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""
 
@@ -29,12 +29,12 @@ of further updates), `attribution`) and `{LUNCH_PATH}`
 their own pull requests; never edit them by hand. A section reads its file at runtime with
 ``fetch(`${{import.meta.env.BASE_URL}}data/<file>`, {{ cache: "no-store" }})``, validates the
 shape, shows `updated` in Sydney time (24-hour) and the `attribution` line, and when the file is
-missing (as `lunch.json` is until its first data pull request merges) or fails to parse shows a
-calm "not available yet" state, never a broken page. Venue: Sydney Masonic Centre, 66 Goulburn
-Street, lat -33.8781, lon 151.2090. Nearest stations: Museum, 3 min walk, lines T2, T3, T8;
-Central, 9 min walk, lines T1, T2, T3, T4, T8, T9. A map card may add `leaflet` 1.9.4 (exact
-version; `@types/leaflet` 1.9.22), tiles `https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png`
-and "Map data © OpenStreetMap contributors" visible under the map; no Google Maps, no API keys.
+missing or fails to parse shows a calm "not available yet" state, never a broken page.
+Venue: Sydney Masonic Centre, 66 Goulburn Street, lat -33.8781, lon 151.2090. Nearest stations:
+Museum, 3 min walk, lines T2, T3, T8; Central, 9 min walk, lines T1, T2, T3, T4, T8, T9. A map
+card may add `leaflet` 1.9.4 (exact version; `@types/leaflet` 1.9.22), tiles
+`https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png` and "Map data © OpenStreetMap contributors"
+visible under the map; no Google Maps, no API keys.
 Render place names, which come from OpenStreetMap through an agent, only as text, never as HTML,
 including Leaflet tooltips; scroll-wheel zoom off on a phone page."""
 
@@ -136,7 +136,8 @@ it with `gh api -X POST {REPO_PATH}/git/refs -f ref=refs/heads/{branch} -f sha='
 `gh api '{REPO_PATH}/contents/{path}?ref={branch}' --jq .sha`; call it `<file sha>`. A 404
 means the file does not exist yet and there is no `<file sha>`.""",
         f"""Write the JSON to a local file through a heredoc with a quoted delimiter,
-`cat > data.json <<'JSON'`, then upload it with
+`cat > data.json <<'JSON'`, and check it with `python3 -m json.tool data.json > /dev/null`;
+if it fails, stop: do not upload, and reply with the error. Otherwise upload it with
 `gh api -X PUT {REPO_PATH}/contents/{path} -f branch={branch} -f message='{title}'
 -f content="$(base64 -w0 < data.json)" -f sha='<file sha>'`, leaving out `-f sha` when
 step {prefix}3 found no file.""",

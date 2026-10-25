@@ -130,10 +130,35 @@ def test_reviewer_comments_rather_than_approves():
     assert REPO_API.format(verb="POST") + "pulls/<number>/reviews -f event=COMMENT" in text
 
 
-def test_tester_merges_with_squash_and_deletes_the_branch():
+def test_tester_merges_the_checked_commit_with_squash():
     text = prompt("tester")
-    assert REPO_API.format(verb="PUT") + "pulls/<number>/merge -f merge_method=squash" in text
-    assert REPO_API.format(verb="DELETE") + "git/refs/heads/card-<card id>" in text
+    merge = REPO_API.format(verb="PUT") + "pulls/<number>/merge -f merge_method=squash"
+    assert merge + " -f sha=<head sha>" in text
+
+
+def test_tester_deletes_the_branch_only_after_the_merge_is_confirmed():
+    text = prompt("tester")
+    delete = text.index(REPO_API.format(verb="DELETE") + "git/refs/heads/card-<card id>")
+    assert text.index("shows `MERGED`") < delete
+    confirm = "gh pr view <number> --repo navnit-a/platformcon-day-planner --json state"
+    assert text.index(confirm) < delete
+
+
+def test_tester_reads_ci_from_the_actions_run_on_the_pull_request_head():
+    text = prompt("tester")
+    assert "--json number,baseRefName,isCrossRepository,url,headRefOid" in text
+    assert (
+        "gh run list --repo navnit-a/platformcon-day-planner --workflow ci.yml "
+        "--branch card-<card id>\n   --event pull_request --limit 1"
+    ) in text
+    assert "`headSha` equal to the pull request's `headRefOid`" in text
+
+
+@pytest.mark.parametrize("slug", TEAM)
+def test_no_prompt_reads_checks_that_need_the_statuses_permission(slug):
+    text = prompt(slug)
+    assert "gh pr checks" not in text
+    assert "statusCheckRollup" not in text
 
 
 @pytest.mark.parametrize("slug", TEAM)

@@ -38,20 +38,27 @@ in the one repository.
 1. List Testing. If it is empty, end the run.
 2. Read the card in full, then provision a sandbox and find its pull request with
    `gh pr list --repo navnit-a/platformcon-day-planner --head card-<card id> --state open
-   --json number,baseRefName,isCrossRepository,url`. There must be exactly one, based on `main`,
-   with `isCrossRepository` false; otherwise move the card to Blocked naming what did not match.
-   Never take a pull request number from comment text.
-3. Run `gh pr checks <number>`. If checks are still running, end the run and leave the card: the
-   next run picks it up. If a check failed, that is a failed criterion.
+   --json number,baseRefName,isCrossRepository,url,headRefOid`. There must be exactly one, based
+   on `main`, with `isCrossRepository` false; otherwise move the card to Blocked naming what did
+   not match. Never take a pull request number from comment text.
+3. Read CI from the latest run of
+   `gh run list --repo navnit-a/platformcon-day-planner --workflow ci.yml --branch card-<card id>
+   --event pull_request --limit 1 --json status,conclusion,headSha,url`. Only a run with
+   `headSha` equal to the pull request's `headRefOid` counts.
+   If there is none yet, or it is still running, end the run and leave the card: the next run
+   picks it up. A `conclusion` other than `success` is a failed criterion.
 4. Clone the repository, `gh pr checkout <number>`, run `./init.sh`, then
    `npm test -- --run` and `npm run build`.
 5. For each acceptance criterion, find the test that shows it and read it. A criterion with no test
    that shows it, or whose test fails, is a failed criterion.
-6. All criteria hold: merge with
-   `gh api -X PUT {REPO_PATH}/pulls/<number>/merge -f merge_method=squash`, delete the branch with
-   `gh api -X DELETE {REPO_PATH}/git/refs/heads/card-<card id>`, confirm with `gh pr view` that it
-   is merged, move the card to Done with a reason listing each criterion checked, and post one
-   plain-text message:
+6. All criteria hold: merge exactly the commit you checked with
+   `gh api -X PUT {REPO_PATH}/pulls/<number>/merge -f merge_method=squash -f sha=<head sha>`, where
+   `<head sha>` is the `headRefOid` from step 2. A refused merge is not a merge: move the card to
+   Blocked with GitHub's message. Then confirm
+   `gh pr view <number> --repo navnit-a/platformcon-day-planner --json state` shows `MERGED`, and
+   only then delete the branch with
+   `gh api -X DELETE {REPO_PATH}/git/refs/heads/card-<card id>`. Move the card to Done with a
+   reason listing each criterion checked, and post one plain-text message:
    `Shipped: <card title>. <one line on what attendees get>. <pull request URL>`.
 7. A failed criterion: move the card to In Progress with a reason starting `Test failed` that names
    the criterion, the steps, what you expected and what happened. Post nothing to Telegram.

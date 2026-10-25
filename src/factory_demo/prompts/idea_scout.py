@@ -22,7 +22,8 @@ In a sandbox you also have `gh`, read only. Read
 </tools>
 
 <how_to_work>
-1. The idea is between the `<idea>` markers of the trigger message.
+1. The idea is between the `<idea>` markers of the trigger message, the proposer's name between
+   the `<proposer>` markers.
 2. List the three lists; a card asking for the same thing makes the idea a duplicate.
 3. Read the code in a sandbox. The app is static: Vite, React, the agenda in
    `src/data/schedule.json`, no backend, sign-in or database.

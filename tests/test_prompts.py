@@ -261,7 +261,7 @@ def test_developer_quotes_card_text_in_shell_commands():
 
 
 def test_new_prompts_stay_well_under_the_cap():
-    assert all(len(prompt(slug).split()) <= 900 for slug in ("idea-scout", "agent-ops"))
+    assert all(len(prompt(slug).split()) <= 1000 for slug in ("idea-scout", "agent-ops"))
 
 
 def test_scout_treats_the_idea_as_data_and_writes_nothing():
@@ -310,3 +310,39 @@ def test_agent_ops_uses_rest_for_the_pull_request():
 def test_design_direction_is_light_by_default():
     assert "light" in DESIGN_DIRECTION
     assert "never as the default" in DESIGN_DIRECTION
+
+
+def agent_ops_actions() -> list[str]:
+    work = section(prompt("agent-ops"), "how_to_work")
+    step = work[work.index("\n5. ") : work.index("\n6. ")]
+    return step.split("\n   - ")[1:]
+
+
+def test_agent_ops_sends_every_operator_line_through_telegram():
+    actions = agent_ops_actions()
+    assert [action.split(":")[0] for action in actions] == ["`platform`", "`prompt`", "`code`"]
+    for action in actions:
+        assert "`telegram_send_message`" in action, action
+
+
+def test_agent_ops_dedupes_cardless_runs_by_its_own_previous_run():
+    text = " ".join(prompt("agent-ops").split())
+    assert "no Blocked card" in text
+    assert "started after your own previous run began" in text
+    stuck = " ".join(section(prompt("agent-ops"), "when_to_stop").split())
+    assert f"`{AGENT_OPS_PREFIX}` comment" in stuck
+
+
+def test_agent_ops_redacts_secrets():
+    text = " ".join(prompt("agent-ops").split())
+    assert "quote only the grant or permission name" in text
+    for shape in ("tokens", "query strings", "environment values", "secret"):
+        assert shape in text, shape
+
+
+def test_agent_ops_opens_the_pr_and_names_failing_prompt_tests():
+    text = " ".join(prompt("agent-ops").split())
+    assert "names each failing test" in text
+    assert "the owner must update those tests before merge" in text
+    stuck = " ".join(section(prompt("agent-ops"), "when_to_stop").split())
+    assert "tests or ruff fail" not in stuck

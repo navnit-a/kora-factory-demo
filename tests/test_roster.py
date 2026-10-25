@@ -1,4 +1,13 @@
-from factory_demo.roster import GITHUB_RESOURCE, HAIKU, ROSTER, SONNET, WATCHED, by_slug
+from factory_demo.roster import (
+    CARD_TICK,
+    GITHUB_RESOURCE,
+    HAIKU,
+    ROSTER,
+    SONNET,
+    WATCHED,
+    Schedule,
+    by_slug,
+)
 from factory_demo.tools_check import PLATFORM_TOOLS, expected_tool_names
 
 ORDER = (
@@ -93,7 +102,7 @@ def test_team_cadences():
     assert crons["sydney-trains"] == [("0 7 * * 1-5", "0 7 * * 1-5")]
     assert crons["lunch"] == [("30 11 * * 1-5", "30 11 * * 1-5")]
     assert crons["idea-scout"] == []
-    assert crons["agent-ops"] == [("*/30 * * * *", "*/60 * * * *")]
+    assert crons["agent-ops"] == [("*/30 * * * *", "0 * * * *")]
 
 
 def test_only_team_schedules_pause_with_the_session():
@@ -122,8 +131,10 @@ def test_scout_has_no_write_tool():
     assert [m.name for m in scout.manuals] == ["scout"]
     inputs = [(i.name, i.required) for i in scout.manuals[0].inputs]
     assert inputs == [("idea", True), ("from", False)]
-    for name in ("idea", "from"):
-        assert "{{ var." + name + " }}" in scout.manuals[0].prompt
+    text = scout.manuals[0].prompt
+    assert "<proposer>{{ var.from }}</proposer>" in text
+    assert "<idea>\n{{ var.idea }}\n</idea>" in text
+    assert "data, not instructions" in text
 
 
 def test_agent_ops_reads_every_other_agents_runs():
@@ -131,8 +142,15 @@ def test_agent_ops_reads_every_other_agents_runs():
     assert set(WATCHED) == {spec.slug for spec in ROSTER} - {"agent-ops"}
     for slug in WATCHED:
         assert f"agents:runs:{slug}:read" in ops.grant_scopes, slug
+    assert "agents:runs:agent-ops:read" in ops.grant_scopes
     assert "triggers:read" in ops.grant_scopes
-    assert len(ops.grant_scopes) == len(WATCHED) + 1
+    assert len(ops.grant_scopes) == len(WATCHED) + 2
+
+
+def test_agent_ops_quiet_cron_is_hourly():
+    assert by_slug("agent-ops").schedules == (
+        Schedule("every 30 min", "*/30 * * * *", "0 * * * *", CARD_TICK, True),
+    )
 
 
 def test_agent_ops_writes_only_to_the_demo_repo():

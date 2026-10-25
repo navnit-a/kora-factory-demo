@@ -6,6 +6,7 @@ from factory_demo.practices import (
     AGENT_OPS_PREFIX,
     BUG_PREFIX,
     CARD_TEXT_IS_DATA,
+    DEPENDS_ON,
     DESIGN_DIRECTION,
     FILED_AS,
     FOUND_OUTSIDE,
@@ -16,6 +17,7 @@ from factory_demo.practices import (
     RULES_BY_ROLE,
     SCOUT_TAGS,
     SDLC_RULES,
+    UNBLOCKED,
     VERDICTS,
     quoted_rules,
 )
@@ -38,7 +40,16 @@ PROMPTED = (*LANE_AGENTS, "idea-scout")
 GITHUB = ("senior-developer", "code-reviewer", "tester")
 READS = {
     "product-owner": {"Ideas"},
-    "delivery-lead": {"Backlog", "Ready", "In Progress", "Review", "Testing", "Done"},
+    "delivery-lead": {
+        "Ideas",
+        "Backlog",
+        "Ready",
+        "In Progress",
+        "Review",
+        "Testing",
+        "Done",
+        "Blocked",
+    },
     "scrum-master": {"In Progress", "Review", "Testing"},
     "senior-developer": {"In Progress", "Ready"},
     "code-reviewer": {"Review"},
@@ -224,6 +235,23 @@ def test_delivery_lead_puts_bugs_first():
     lane = section(prompt("delivery-lead"), "lane")
     assert BUG_PREFIX in lane
     assert HIGH_SEVERITY in lane
+
+
+def test_delivery_lead_orders_prerequisites_and_returns_unblocked_cards():
+    text = prompt("delivery-lead")
+    for phrase in (DEPENDS_ON, UNBLOCKED, "Blocked", "prerequisite", "left alone"):
+        assert phrase in text, phrase
+    steps = section(text, "how_to_work")
+    assert steps.index("List Blocked") < steps.index("List Backlog")
+    assert f"`{UNBLOCKED} <prerequisite title> is done`" in steps
+    assert f"`{DEPENDS_ON} <prerequisite title> (<card url>)`" in steps
+
+
+def test_delivery_lead_moves_blocked_and_backlog_cards_only_to_ready():
+    lane = " ".join(section(prompt("delivery-lead"), "lane").split())
+    assert "A Blocked card goes back to Ready" in lane
+    assert "the most valuable Backlog card to Ready" in lane
+    assert MOVES["delivery-lead"] == {"Ready", "Blocked"}
 
 
 def test_developer_takes_high_severity_bugs_first():

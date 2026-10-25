@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -233,6 +234,30 @@ def test_session_scripts_start_the_bridge_in_its_own_group_and_stop_all_of_it(tm
         assert wait_until(lambda: not alive(child))
         assert wait_until(lambda: not alive(pid))
         assert not (tmp_path / "deploy/generated/bridge.pid").exists()
+    finally:
+        for leftover in (pid, child):
+            if alive(leftover):
+                os.kill(leftover, signal.SIGKILL)
+
+
+def test_session_start_without_setsid_still_gives_the_bridge_its_own_group(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("bash", "nohup", "mkdir", "grep", "cat", "sleep", "ps", "tr", "rm"):
+        (bin_dir / tool).symlink_to(shutil.which(tool))
+    stub(bin_dir, "uv", "sleep 60 &\necho $! > child.pid\nwait")
+    (tmp_path / ".env").write_text("KORA_BRIDGE_TOKEN=kora_x\n")
+    started = run_block("session-start.sh", tmp_path, str(bin_dir))
+    assert started.returncode == 0, started.stderr
+    pid = int((tmp_path / "deploy/generated/bridge.pid").read_text())
+    assert wait_until(lambda: (tmp_path / "child.pid").exists())
+    child = int((tmp_path / "child.pid").read_text())
+    try:
+        assert os.getpgid(pid) == pid
+        stopped = run_block("session-stop.sh", tmp_path, str(bin_dir))
+        assert stopped.returncode == 0, stopped.stderr
+        assert wait_until(lambda: not alive(child))
+        assert wait_until(lambda: not alive(pid))
     finally:
         for leftover in (pid, child):
             if alive(leftover):

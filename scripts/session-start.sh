@@ -21,6 +21,7 @@ elif grep -q '^KORA_BRIDGE_TOKEN=' .env 2>/dev/null; then
   if command -v setsid >/dev/null 2>&1; then
     nohup setsid uv run --env-file .env python scripts/ideas-bridge.py >> deploy/generated/bridge.log 2>&1 &
   else
+    set -m
     nohup uv run --env-file .env python scripts/ideas-bridge.py >> deploy/generated/bridge.log 2>&1 &
   fi
   echo $! > "$BRIDGE_PID_FILE"

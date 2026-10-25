@@ -56,6 +56,9 @@ class KoraClient:
     def list_environments(self) -> list[dict]:
         return _as_list(self._request("GET", "/api/v1/environments"))
 
+    def create_environment(self, request: dict) -> dict:
+        return self._request("POST", "/api/v1/environments", request)
+
     def list_agents(self) -> list[dict]:
         return _as_list(self._request("GET", "/api/v1/agent-types"))
 

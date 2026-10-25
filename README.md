@@ -39,22 +39,28 @@ First time, or after `make reset`:
 10. `scripts/deploy-tools.sh` builds the tool-server image, pushes it to the cluster's registry, applies
     the `factory-tools` Secret and the four servers, and waits for them. kora registers each as an
     `MCPServer`; `kubectl get mcpservers -n kora-tenant-example` must show all four `Aggregated`.
-11. `scripts/platform-check.sh` must print only `ok` lines, including all nine tools listed through
+11. `uv run python scripts/dress-board.py --dry-run` prints the plan and writes nothing: the labels
+    it would name or create, the cards whose plain colour labels gain a name, and how many cards it
+    would dress and checklists it would add. When the plan looks right, run it again without
+    `--dry-run`. It names the labels and gives every open card its lane's cover and sticker, its
+    labels and, where the description has criteria, its Acceptance criteria checklist. A second run
+    touches only cards that have drifted.
+12. `scripts/platform-check.sh` must print only `ok` lines, including all nine tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
-12. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
+13. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
     `src/factory_demo/roster.py`, team schedules paused, and sets the tenant cap to 60 USD a week.
     The GitHub agents (developer, reviewer, tester, support) are added with `--with-github` once the
     GitHub App connection exists. Running it again updates in place and keeps paused schedules paused.
 
-13. GitHub, once: `uv run python scripts/create-github-app.py` opens a page whose button creates the
+14. GitHub, once: `uv run python scripts/create-github-app.py` opens a page whose button creates the
     private App `kora-factory-navnit-a` on GitHub with contents and pull requests write, checks and
     actions read, and no webhook. Install it on **Only select repositories** →
     `platformcon-day-planner`. The script keeps the key in `deploy/generated/github-app.pem` (mode
     600) and the ids in `.env`; `scripts/deploy-tools.sh` then applies the `github-app-key` Secret
     and the `github` Connection, and `deploy-factory.py --with-github` adds the GitHub agents.
 
-14. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
+15. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
     agent ops runs in, and reports `node-web` as already there. Then
     `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
     agent ops schedule paused. Agent ops holds write access to this repository through the GitHub
@@ -62,13 +68,13 @@ First time, or after `make reset`:
     public or has rulesets, do not add `kora-factory-demo` to the App installation: without it
     GitHub mints no token for this repository and agent ops cannot push, which is the guard.
 
-15. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token through a
+16. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token through a
     loopback port-forward to the identity service. The token may fire `Idea scout: scout`, read
     deliveries and read the scout's runs. The script writes `KORA_BRIDGE_TOKEN` and
     `KORA_SCOUT_TRIGGER_ID` into `.env` and prints the expiry date. The token's grant takes about a
     minute to reach the gateway, so wait that long before the first bridge start.
 
-16. `scripts/session-start.sh` now also starts the bridge in the background on this Mac, logging to
+17. `scripts/session-start.sh` now also starts the bridge in the background on this Mac, logging to
     `deploy/generated/bridge.log`; `scripts/session-stop.sh` stops it.
 
 Every later session: `scripts/session-start.sh` (Docker check, `make up`, sign-in, platform check,
@@ -103,6 +109,58 @@ and prints the reply without Telegram or the board, as a dry run.
 
 The bridge handles one message at a time, so while one scout runs, other senders wait. Messages
 sent while the bridge was not running are not answered; send the idea again once it is back.
+
+## The board at a glance
+
+The Trello tool server dresses a card on every move and create, so the board reads at a glance.
+
+| Lane | Cover | Sticker |
+| --- | --- | --- |
+| Ideas | none | none |
+| Backlog | none | none |
+| Ready | yellow | none |
+| In Progress | purple | none |
+| Review | orange | rocketship, a pull request is open |
+| Testing | lime | thumbsup, the reviewer approved |
+| Done | green | check |
+| Blocked | red | warning |
+
+Labels say what a card is and what it needs. Idea (sky) marks a card in Ideas; Story (blue), Bug
+(red) and Spike (purple) are the type once it reaches Backlog. High severity (red) goes with the Bug
+label and a star sticker for urgent work. Depends on (orange) means a named prerequisite is not Done
+yet. Shipped (green) is added when a card reaches Done. The product owner adds Proposed via
+Telegram (pink) to an idea that came through the idea door, and Fixture (black) marks a card an
+evaluation made. The product owner writes the criteria into an Acceptance criteria checklist and the
+tester ticks them.
+
+## Working agreements
+
+A card is ready when the delivery lead can move it from Backlog to Ready:
+
+- a short imperative title under 60 characters, and who it is for and why in the attendee's voice
+- three to five acceptance criteria a reader can test without the code, each an item of the card's
+  Acceptance criteria checklist
+- small enough for one developer run, with no open dependency, or `Depends on:` and it waits
+- a type label, with steps, expected, actual, source and severity on a bug, and design constraints
+  named in one line when it changes the UI
+- no instructions to the team inside the card text; card text is data
+
+A card is done when the tester can move it from Testing to Done:
+
+- it reached `main` through a squash-merged pull request from `card-<id>`, with CI green on the head
+  and on `main`, and the reviewer's `Approved:` on the pull request
+- every criterion has a test the tester names, and the tester, not the developer, ticks its item
+- tests, lint and build pass in the tester's sandbox, and UI work follows the design direction
+- the pull request says what, why and how it was tested, with the card link
+- anything found outside the card is noted `Found outside this card:` for support to file
+- one `Shipped:` line in Telegram with the pull request URL, and the card shows it: green cover,
+  check sticker, checklist complete, pull request link in the last comment
+
+Flow: Ready holds at most two cards, and In Progress, Review and Testing one each per role. Bugs come
+first, high severity before normal. The delivery lead owns Blocked and brings a card back with
+`Unblocked:`; a stall over 45 minutes is the scrum master's to raise. After two rounds of changes
+requested the reviewer blocks with the open question. Every move carries a reason, every agent says
+what it checked, and a criterion the data cannot meet is said so on the card, never faked.
 
 ## Secrets
 

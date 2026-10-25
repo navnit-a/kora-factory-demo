@@ -1,4 +1,5 @@
 import pytest
+import yaml
 
 from factory_demo.secrets import read_env, render_secret
 
@@ -21,9 +22,15 @@ def test_render_secret_maps_keys_and_labels():
     assert "name: azure-ailabs" in out
     assert "namespace: kora-system" in out
     assert 'runkora.io/inference-provider: "true"' in out
-    assert "apiKey: s3cr3t" in out
+    assert 'apiKey: "s3cr3t"' in out
 
 
 def test_render_secret_missing_env_var_raises():
     with pytest.raises(KeyError, match="MISSING"):
         render_secret("x", "ns", {}, {"apiKey": "MISSING"})
+
+
+@pytest.mark.parametrize("value", ["x=y ", "a #b", "123", "yes", "", "rg-name  ", 'q"uote'])
+def test_rendered_secret_parses_back_to_the_exact_string(value):
+    out = render_secret("s", "ns", {"V": value}, {"key": "V"})
+    assert yaml.safe_load(out)["stringData"]["key"] == value

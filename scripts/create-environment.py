@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from factory_demo.cli import run_cli  # noqa: E402
 from factory_demo.environments import NODE_WEB, environment_request  # noqa: E402
 from factory_demo.kora_api import load_client  # noqa: E402
 
@@ -19,4 +20,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_cli(main))

@@ -3,25 +3,41 @@
 A small agent factory on [kora](https://github.com/runkora/kora) for the PlatformCon Sydney launch
 video: six team agents that work a Trello board and ship a web app, a Sydney trains agent and a lunch
 agent that post to Telegram. The design and plans are kept locally under `docs/superpowers/`, which
-is not published.
+is not published. The rules every agent and tool follows are in
+[docs/agent-practices.md](docs/agent-practices.md).
 
 ## Session runbook
 
-kora is cloned at `~/dev/kora`. The cluster runs in k3d on this Mac; the owner's Docker Desktop is set
-to 8 CPUs and 12 GB.
+kora is cloned at `~/dev/kora`. The cluster runs in k3d on this Mac; Docker Desktop is set to 8 CPUs
+and 12 GB. Every script prints a one-line hint and exits 2 when the kora token is missing or expired.
 
-1. Start Docker Desktop. Check nothing else holds port 443.
-2. `cd ~/dev/kora && make up` (idempotent; the first run builds every image).
-3. `make auth` once per four hours, or `make auth-refresh`. The token lands in `/tmp/kora_credentials.json`.
-4. `cd ~/dev/kora-factory-demo && uv sync && uv run pytest -q`.
-5. `uv run python scripts/render-secrets.py && kubectl apply -f deploy/generated/secrets.yaml`, then
-   apply the providers in `deploy/providers/` (see the plan's Task 3).
-6. `scripts/platform-check.sh` must print only `ok` lines before any agent work starts.
+First time, or after `make reset`:
 
-The Node sandbox image is enabled by `node: {enabled: true}` under `agents.sandboxImages.bundled` in
-`~/dev/kora/deploy/reference/values/kora.local.yaml`, a local edit in the kora clone. After a
-`make reset`, run `make redeploy-sandbox-images` and then
-`cd deploy/reference && helmfile -e local apply --selector name=kora`.
+1. Start Docker Desktop. Check nothing else holds port 443; if something does, the dashboard and API
+   are on `:8443` and `KORA_API_URL` in `.env` must say so.
+2. `cd ~/dev/kora && make up`. Run one at a time; two runs at once collide in Helm.
+3. `cd ~/dev/kora && make redeploy-sandbox-images`, set `node: {enabled: true}` under
+   `agents.sandboxImages.bundled` in `deploy/reference/values/kora.local.yaml`, then
+   `cd deploy/reference && helmfile -e local apply --selector name=kora`.
+4. `cd ~/dev/kora && make auth` and sign in as `dev@local.runkora.io` / `password`. The token lasts four
+   hours; `make auth-refresh` renews it.
+5. `cd ~/dev/kora-factory-demo && uv sync && uv run pytest -q`.
+6. Secrets and providers:
+
+   ```bash
+   uv run python scripts/render-secrets.py
+   kubectl apply -f deploy/generated/secrets.yaml
+   set -a && . ./.env && set +a
+   for f in deploy/providers/*.yaml; do envsubst < "$f" | kubectl apply -f -; done
+   ```
+
+7. `uv run python scripts/register-models.py` registers the five virtual models and their prices.
+8. `uv run python scripts/create-environment.py` creates the `node-web` sandbox environment.
+9. `uv run python scripts/smoke.py` must end with `idle spend_usd=` above zero, and
+   `uv run python scripts/smoke.py --budget-stop` must end with `budget_exhausted`.
+10. `scripts/platform-check.sh` must print only `ok` lines.
+
+Every later session: start Docker, `make up`, `make auth-refresh`, then `scripts/platform-check.sh`.
 
 Dashboard: https://local.runkora.io, sign in as `dev@local.runkora.io`. API: https://api.local.runkora.io.
 The local TLS certificate comes from mkcert; the API client verifies against `$(mkcert -CAROOT)/rootCA.pem`
@@ -48,9 +64,13 @@ committed, pasted into a prompt, or shown on screen.
 
 - kora's native `azure` provider cannot call Claude on Foundry: it sets only an `api-key` header and
   the Anthropic SDK refuses to send without credentials it recognises. The `compatible` provider on
-  `<resource>/anthropic/v1` works, with price overrides copied from the synced Azure prices.
+  `<resource>/anthropic/v1` works, with price overrides set to the published list prices.
+- GPT-5.5 and GPT-5.4 work through kora's native `azure` provider on the same Foundry resource and key.
+- Prices match Anthropic's list prices, which Foundry bills at: Haiku 5.5 $0.10 in and $0.50 out per
+  million tokens for prompts up to 100K tokens, Sonnet 5.5 $2 and $10, Fable 5.1 $10 and $50.
 - A run started through the API ends its turn as `idle` and keeps its pod slot until the idle timeout
   (20 minutes for a person, 5 for a trigger). kora's run DELETE removes the run from history.
 - Budget changes take about 30 seconds to reach the gateway, and the call in flight when a limit is
   crossed still completes. A Haiku 5.5 run of a small task costs about $0.002.
-- Foundry rejects some Claude Code requests with `thinking.adaptive.display`; runs still finish.
+- Foundry rejects some Claude Code requests with `thinking.adaptive.display`, because Claude Code asks
+  for the `updates` display mode, a beta Foundry does not accept yet. Runs still finish.

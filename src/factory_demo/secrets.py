@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ def render_secret(
     metadata = [f"  name: {name}", f"  namespace: {namespace}"]
     if label_lines:
         metadata = [*metadata, "  labels:", *label_lines]
-    data_lines = [f"  {k}: {v}" for k, v in values.items()]
+    data_lines = [f"  {k}: {json.dumps(v)}" for k, v in values.items()]
     return (
         "\n".join(
             [

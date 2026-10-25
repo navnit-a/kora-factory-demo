@@ -37,6 +37,19 @@ class KoraClient:
         response.raise_for_status()
         return response.json() if response.content else {}
 
+    def post_json(self, path: str, body: dict) -> tuple[int, dict]:
+        content = json.dumps(body, separators=(",", ":")).encode()
+        response = self.http.post(
+            path, content=content, headers={"Content-Type": "application/json"}
+        )
+        if response.status_code == 401:
+            raise KoraAuthError(AUTH_HINT)
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {"error": {"message": response.text[:300]}}
+        return response.status_code, payload if isinstance(payload, dict) else {"data": payload}
+
     def list_models(self) -> list[dict]:
         return _as_list(self._request("GET", "/v1/models"))
 
@@ -48,6 +61,9 @@ class KoraClient:
 
     def update_virtual_model(self, virtual_model_id: str, request: dict) -> dict:
         return self._request("PUT", f"/v1/catalog/virtual-models/{virtual_model_id}", request)
+
+    def list_pricing(self) -> list[dict]:
+        return _as_list(self._request("GET", "/v1/catalog/pricing"))
 
     def set_price_override(self, provider: str, model_id: str, request: dict) -> dict:
         path = f"/v1/catalog/pricing/{provider}/{model_id}/override"

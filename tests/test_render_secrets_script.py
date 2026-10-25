@@ -19,4 +19,4 @@ def test_script_writes_the_provider_secret(tmp_path):
     assert "name: azure-ailabs" in text
     assert "namespace: kora-system" in text
     assert 'runkora.io/inference-provider: "true"' in text
-    assert "apiKey: a" in text
+    assert 'apiKey: "a"' in text

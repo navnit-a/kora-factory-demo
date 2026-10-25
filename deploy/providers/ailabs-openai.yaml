@@ -1,0 +1,14 @@
+apiVersion: runkora.io/v1alpha1
+kind: InferenceProvider
+metadata:
+  name: ailabs-openai
+  namespace: kora-system
+spec:
+  type: azure
+  displayName: ClearRoute Foundry OpenAI
+  azure:
+    endpoint: https://${AILABS_FOUNDRY_RESOURCE}.openai.azure.com
+    apiVersion: "2024-10-21"
+    apiKeySecretRef:
+      name: azure-ailabs
+      key: apiKey

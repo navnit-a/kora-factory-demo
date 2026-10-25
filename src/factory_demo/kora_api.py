@@ -1,5 +1,6 @@
 import json
 import os
+import ssl
 import subprocess
 import time
 from pathlib import Path
@@ -17,26 +18,20 @@ class KoraAuthError(Exception):
 
 
 class KoraClient:
-    def __init__(self, base_url: str, token: str, verify: str | bool = True):
+    def __init__(self, base_url: str, token: str, verify: ssl.SSLContext | bool = True):
         self.base_url = base_url.rstrip("/")
         self.token = token
-        self.verify = verify
-        self._http: httpx.Client | None = None
-
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                base_url=self.base_url,
-                headers={"Authorization": f"Bearer {self.token}"},
-                verify=self.verify,
-                timeout=30.0,
-            )
-        return self._http
+        self.http = httpx.Client(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {token}"},
+            verify=verify,
+            timeout=30.0,
+        )
 
     def _request(self, method: str, path: str, body: dict | None = None) -> dict | list:
         content = None if body is None else json.dumps(body, separators=(",", ":")).encode()
         headers = {} if body is None else {"Content-Type": "application/json"}
-        response = self._client().request(method, path, content=content, headers=headers)
+        response = self.http.request(method, path, content=content, headers=headers)
         if response.status_code == 401:
             raise KoraAuthError(AUTH_HINT)
         response.raise_for_status()
@@ -115,4 +110,8 @@ def load_client(
 ) -> KoraClient:
     credentials = read_credentials(credentials_path)
     url = base_url or os.environ.get("KORA_API_URL") or DEFAULT_API_URL
-    return KoraClient(url, credentials["access_token"], verify=default_ca_file())
+    return KoraClient(url, credentials["access_token"], verify=tls_context(default_ca_file()))
+
+
+def tls_context(ca: str | bool) -> ssl.SSLContext | bool:
+    return ssl.create_default_context(cafile=ca) if isinstance(ca, str) else ca

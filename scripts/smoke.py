@@ -49,7 +49,7 @@ def show_tenant_pods() -> None:
 
 def run_once(client: KoraClient, agent_id: str, message: str) -> tuple[dict, dict]:
     run = client.start_run(agent_id, message)
-    print(f"run {run['id']} started")
+    print(f"run {run['id']} started", flush=True)
     try:
         finished = client.wait_for_run(run["id"], timeout_s=600)
     except TimeoutError:
@@ -60,9 +60,11 @@ def run_once(client: KoraClient, agent_id: str, message: str) -> tuple[dict, dic
 
 def smoke(client: KoraClient, agent_id: str) -> int:
     finished, usage = run_once(client, agent_id, SMOKE_MESSAGE)
-    cost = float(usage.get("cost_usd", 0))
-    print(f"{finished['state']} cost_usd={cost:.4f}")
-    return 0 if finished["state"] == "completed" and cost > 0 else 1
+    cost = float(usage.get("spend_usd", 0))
+    print(
+        f"{finished['state']} spend_usd={cost:.4f} tokens={usage.get('total_tokens')}", flush=True
+    )
+    return 0 if finished["state"] in {"idle", "completed"} and cost > 0 else 1
 
 
 def budget_stop(client: KoraClient, agent_id: str) -> int:
@@ -71,7 +73,8 @@ def budget_stop(client: KoraClient, agent_id: str) -> int:
         started = time.monotonic()
         finished, usage = run_once(client, agent_id, BUDGET_STOP_MESSAGE)
         elapsed = time.monotonic() - started
-        print(f"{finished['state']} after {elapsed:.0f}s cost_usd={usage.get('cost_usd')}")
+        spend = usage.get("spend_usd")
+        print(f"{finished['state']} after {elapsed:.0f}s spend_usd={spend}", flush=True)
         return 0 if finished["state"] == "budget_exhausted" else 1
     finally:
         client.update_agent(agent_id, {"budget": {"per_run_limit_usd": SMOKE_RUN_LIMIT_USD}})

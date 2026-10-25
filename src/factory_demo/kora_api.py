@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 
-TERMINAL_STATES = frozenset({"completed", "failed", "budget_exhausted"})
+TERMINAL_STATES = frozenset({"idle", "completed", "failed", "budget_exhausted"})
 DEFAULT_API_URL = "https://api.local.runkora.io"
 DEFAULT_CREDENTIALS = "/tmp/kora_credentials.json"
 AUTH_HINT = "kora token rejected: run 'make auth-refresh' in the kora checkout"
@@ -79,7 +79,7 @@ class KoraClient:
         return self._request("GET", f"/api/v1/runs/{run_id}")
 
     def run_usage(self, run_id: str) -> dict:
-        return self._request("GET", f"/api/v1/runs/{run_id}/usage")
+        return self._request("GET", f"/v1/usage/run/{run_id}")
 
     def wait_for_run(self, run_id: str, timeout_s: int = 600, poll_s: float = 5.0) -> dict:
         deadline = time.monotonic() + timeout_s

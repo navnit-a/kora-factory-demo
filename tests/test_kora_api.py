@@ -62,3 +62,15 @@ def test_client_builds_its_http_session_once_at_construction():
     client = KoraClient(BASE, "tok")
     assert isinstance(client.http, httpx.Client)
     assert client.http.headers["authorization"] == "Bearer tok"
+
+
+@respx.mock
+def test_wait_for_run_treats_an_idle_run_as_its_turn_finished():
+    respx.get(f"{BASE}/api/v1/runs/run-1").mock(
+        side_effect=[
+            httpx.Response(200, json={"id": "run-1", "state": "active"}),
+            httpx.Response(200, json={"id": "run-1", "state": "idle"}),
+        ]
+    )
+    run = KoraClient(BASE, "tok").wait_for_run("run-1", timeout_s=5, poll_s=0)
+    assert run["state"] == "idle"

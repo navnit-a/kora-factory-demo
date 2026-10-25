@@ -38,15 +38,15 @@ def test_agent_and_run_reads_hit_their_paths():
     patch = respx.patch(f"{BASE}/api/v1/agent-types/at-1").mock(
         return_value=httpx.Response(200, json={})
     )
-    respx.get(f"{BASE}/api/v1/runs/r-1/usage").mock(
-        return_value=httpx.Response(200, json={"cost_usd": 0.03})
+    respx.get(f"{BASE}/v1/usage/run/r-1").mock(
+        return_value=httpx.Response(200, json={"run_id": "r-1", "spend_usd": 0.03})
     )
     c = client()
     assert c.create_agent({"slug": "smoke"}) == {"id": "at-1"}
     assert c.get_agent("at-1") == {"state": "active"}
     c.update_agent("at-1", {"budget": {"per_run_limit_usd": 0.01}})
     assert patch.calls[0].request.read() == b'{"budget":{"per_run_limit_usd":0.01}}'
-    assert c.run_usage("r-1") == {"cost_usd": 0.03}
+    assert c.run_usage("r-1") == {"run_id": "r-1", "spend_usd": 0.03}
 
 
 @respx.mock

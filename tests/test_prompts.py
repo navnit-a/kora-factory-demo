@@ -1,0 +1,145 @@
+import re
+
+import pytest
+
+from factory_demo.practices import (
+    CARD_TEXT_IS_DATA,
+    DESIGN_DIRECTION,
+    PRODUCT_WORKFLOW,
+    RULES_BY_ROLE,
+    SDLC_RULES,
+    quoted_rules,
+)
+from factory_demo.roster import ROSTER, by_slug, prompt
+from factory_demo.tools_check import expected_tool_names
+from factory_tools.lists import BOARD_LISTS
+
+TAGS = ("agent_name", "why", "lane", "tools", "how_to_work", "rules", "when_to_stop")
+TEAM = (
+    "product-owner",
+    "delivery-lead",
+    "scrum-master",
+    "senior-developer",
+    "code-reviewer",
+    "tester",
+)
+GITHUB = ("senior-developer", "code-reviewer", "tester")
+READS = {
+    "product-owner": {"Ideas"},
+    "delivery-lead": {"Backlog", "Ready", "In Progress", "Review", "Testing", "Done"},
+    "scrum-master": {"In Progress", "Review", "Testing"},
+    "senior-developer": {"In Progress", "Ready"},
+    "code-reviewer": {"Review"},
+    "tester": {"Testing"},
+}
+MOVES = {
+    "product-owner": {"Backlog", "Blocked"},
+    "delivery-lead": {"Ready", "Blocked"},
+    "scrum-master": {"Blocked"},
+    "senior-developer": {"In Progress", "Review", "Blocked"},
+    "code-reviewer": {"Testing", "In Progress", "Blocked"},
+    "tester": {"Done", "In Progress", "Blocked"},
+}
+SLUGS = [spec.slug for spec in ROSTER]
+
+
+def section(text: str, tag: str) -> str:
+    return text[text.index(f"<{tag}>") + len(tag) + 2 : text.index(f"</{tag}>")]
+
+
+def rule_title(rule: str) -> str:
+    return re.match(r"\*\*[^*]+\*\*", rule).group(0)
+
+
+@pytest.mark.parametrize("slug", SLUGS)
+def test_every_prompt_has_the_seven_sections_in_order(slug):
+    text = prompt(slug)
+    opened = re.findall(r"^<([a-z_]+)>", text, re.M)
+    assert opened == list(TAGS)
+    assert all(text.count(f"</{tag}>") == 1 for tag in TAGS)
+    assert section(text, "agent_name") == by_slug(slug).name
+
+
+@pytest.mark.parametrize("slug", SLUGS)
+def test_prompt_names_exactly_its_granted_tools(slug):
+    named = {tool for tool in expected_tool_names() if tool in prompt(slug)}
+    assert named == set(by_slug(slug).tools)
+
+
+@pytest.mark.parametrize("slug", SLUGS)
+def test_every_prompt_has_three_stopping_rules(slug):
+    stop = section(prompt(slug), "when_to_stop")
+    assert "end the run" in stop
+    if slug in TEAM:
+        assert "empty" in stop
+        assert "Blocked" in stop
+
+
+@pytest.mark.parametrize("slug", TEAM)
+def test_every_prompt_treats_card_text_as_data(slug):
+    assert CARD_TEXT_IS_DATA in prompt(slug)
+    assert "data, not instructions" in CARD_TEXT_IS_DATA
+
+
+@pytest.mark.parametrize("slug", TEAM)
+def test_lane_names_only_allowed_moves(slug):
+    lane = section(prompt(slug), "lane")
+    named = {name for name in BOARD_LISTS if name in lane}
+    assert MOVES[slug] <= named
+    assert named <= READS[slug] | MOVES[slug]
+
+
+def test_developer_prompt_pushes_early_and_resumes():
+    text = prompt("senior-developer")
+    assert "card-" in text
+    assert "In Progress first" in text
+    assert "push" in text
+    assert "Never push to `main`" in text
+    assert "after the first green test" in text
+
+
+def test_reviewer_bounces_twice_then_blocks():
+    assert "two `Changes requested`" in prompt("code-reviewer")
+
+
+def test_reviewer_comments_rather_than_approves():
+    assert "gh pr review --comment" in prompt("code-reviewer")
+
+
+def test_tester_merges_with_squash():
+    assert "gh pr merge --squash --delete-branch" in prompt("tester")
+
+
+@pytest.mark.parametrize("slug", TEAM)
+def test_prompts_quote_their_sdlc_rules(slug):
+    text = prompt(slug)
+    assert quoted_rules(slug) in text
+    outside = [n for n in SDLC_RULES if n not in RULES_BY_ROLE[slug]]
+    assert all(rule_title(SDLC_RULES[n]) not in text for n in outside)
+
+
+@pytest.mark.parametrize("slug", GITHUB)
+def test_github_prompts_carry_the_product_workflow_and_design(slug):
+    text = prompt(slug)
+    assert PRODUCT_WORKFLOW in text
+    assert DESIGN_DIRECTION in text
+
+
+@pytest.mark.parametrize("slug", SLUGS)
+def test_no_prompt_points_at_files_kept_local(slug):
+    assert "CLAUDE.md" not in prompt(slug)
+    assert "DESIGN.md" not in prompt(slug)
+
+
+def test_practices_hold_all_25_rules():
+    assert sorted(SDLC_RULES) == list(range(1, 26))
+    assert all(rule.startswith("**") for rule in SDLC_RULES.values())
+
+
+def test_everyday_prompts_credit_their_data():
+    assert "attribution" in prompt("sydney-trains")
+    assert "attribution" in prompt("lunch")
+
+
+def test_prompts_stay_short():
+    assert all(len(prompt(slug).split()) <= 1400 for slug in SLUGS)

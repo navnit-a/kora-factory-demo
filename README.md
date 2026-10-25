@@ -45,6 +45,13 @@ First time, or after `make reset`:
     The GitHub agents (developer, reviewer, tester, support) are added with `--with-github` once the
     GitHub App connection exists. Running it again updates in place and keeps paused schedules paused.
 
+13. GitHub, once: `uv run python scripts/create-github-app.py` opens a page whose button creates the
+    private App `kora-factory-navnit-a` on GitHub with contents and pull requests write, checks and
+    actions read, and no webhook. Install it on **Only select repositories** →
+    `platformcon-day-planner`. The script keeps the key in `deploy/generated/github-app.pem` (mode
+    600) and the ids in `.env`; `scripts/deploy-tools.sh` then applies the `github-app-key` Secret
+    and the `github` Connection, and `deploy-factory.py --with-github` adds the GitHub agents.
+
 Every later session: `scripts/session-start.sh` (Docker check, `make up`, sign-in, platform check,
 factory status), then `uv run python scripts/factory.py resume --cadence recording` to start the
 team. `scripts/session-stop.sh` pauses every team schedule and fails loudly if any is still running;

@@ -10,6 +10,9 @@ docker push --quiet "localhost:5001/factory-tools:${TAG}"
 uv run python scripts/render-secrets.py
 kubectl apply -f deploy/generated/secrets.yaml
 kubectl apply -k deploy/tools
+if [ -f deploy/generated/github-connection.yaml ]; then
+  kubectl apply -f deploy/generated/github-connection.yaml
+fi
 
 for name in trello telegram transport places; do
   kubectl rollout restart "deployment/tools-${name}" -n kora-tenant-example >/dev/null

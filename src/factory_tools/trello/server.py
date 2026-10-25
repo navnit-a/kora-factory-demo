@@ -8,6 +8,7 @@ from pydantic import Field
 
 from factory_tools.lists import BOARD_LISTS, ListName
 from factory_tools.trello.client import TrelloClient
+from factory_tools.trello.look import CHECKLIST_NAME, LABELS, LabelName
 
 TRELLO_TEXT_LIMIT = 16384
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
@@ -15,6 +16,8 @@ WRITE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
 )
 LIST_DESCRIPTION = "One of the board's lists: " + ", ".join(BOARD_LISTS) + "."
+LABEL_DESCRIPTION = "One label of the board language: " + ", ".join(LABELS) + "."
+Criterion = Annotated[str, Field(min_length=3, max_length=200)]
 CardId = Annotated[
     str, Field(description="The Trello card id from trello_list_cards or trello_get_card.")
 ]
@@ -103,3 +106,62 @@ async def trello_update_card_description(
     text: Annotated[str, text_field("The new description; replaces the old one entirely.", 0)],
 ) -> dict:
     return await with_trello(lambda trello: trello.set_description(card_id, text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Add a named label to a card; the board's colour for it is applied. Used by the "
+    "product owner (type, Proposed via Telegram), the delivery lead and support (Depends on). "
+    "Moves and creates already set the type, Shipped and the lane look.",
+)
+async def trello_add_label(
+    card_id: CardId,
+    name: Annotated[LabelName, Field(description=LABEL_DESCRIPTION)],
+) -> dict:
+    return await with_trello(lambda trello: trello.add_label(card_id, name))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Give a card its '{CHECKLIST_NAME}' checklist, one item per criterion, in order. "
+    "Used by the product owner when a story is written; replaces the card's existing criteria.",
+)
+async def trello_add_checklist(
+    card_id: CardId,
+    items: Annotated[
+        list[Criterion],
+        Field(
+            min_length=3,
+            max_length=8,
+            description="Three to eight acceptance criteria, each 3 to 200 characters.",
+        ),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.add_checklist(card_id, tuple(items)))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description=f"Tick one item of a card's '{CHECKLIST_NAME}' checklist once it is verified. "
+    "Used by the tester; the exact text or its first words pick the item.",
+)
+async def trello_check_item(
+    card_id: CardId,
+    text: Annotated[
+        str,
+        Field(min_length=3, max_length=200, description="The criterion's text or first words."),
+    ],
+) -> dict:
+    return await with_trello(lambda trello: trello.check_item(card_id, text))
+
+
+@mcp.tool(
+    annotations=WRITE,
+    description="Mark a card high priority (a star sticker and the High severity label) or clear "
+    "it. Used by the delivery lead and support for urgent work.",
+)
+async def trello_set_priority(
+    card_id: CardId,
+    high: Annotated[bool, Field(description="True to mark high priority, False to clear it.")],
+) -> dict:
+    return await with_trello(lambda trello: trello.set_priority(card_id, high))

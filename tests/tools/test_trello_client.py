@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -22,6 +23,40 @@ LISTS = [
 
 def form(request: httpx.Request) -> dict:
     return dict(httpx.QueryParams(request.content.decode()))
+
+
+def body(request: httpx.Request) -> dict:
+    return json.loads(request.content)
+
+
+def mock_look(
+    card_id: str,
+    stickers: list[dict] | None = None,
+    card_labels: list[dict] | None = None,
+    board_labels: list[dict] | None = None,
+) -> dict[str, respx.Route]:
+    card = {"id": card_id, "idBoard": "board", "labels": card_labels or []}
+    return {
+        "card": respx.get(f"{API}/cards/{card_id}").mock(
+            return_value=httpx.Response(200, json=card)
+        ),
+        "put": respx.put(f"{API}/cards/{card_id}").mock(return_value=httpx.Response(200, json={})),
+        "stickers": respx.get(f"{API}/cards/{card_id}/stickers").mock(
+            return_value=httpx.Response(200, json=stickers or [])
+        ),
+        "add_sticker": respx.post(f"{API}/cards/{card_id}/stickers").mock(
+            return_value=httpx.Response(200, json={"id": "s-new"})
+        ),
+        "board_labels": respx.get(f"{API}/boards/board/labels").mock(
+            return_value=httpx.Response(200, json=board_labels or [])
+        ),
+        "new_label": respx.post(f"{API}/labels").mock(
+            return_value=httpx.Response(200, json={"id": "lab-new"})
+        ),
+        "add_label": respx.post(f"{API}/cards/{card_id}/idLabels").mock(
+            return_value=httpx.Response(200, json=[])
+        ),
+    }
 
 
 def client() -> TrelloClient:
@@ -144,6 +179,7 @@ def test_create_posts_to_the_list_id():
             200, json={"id": "0123456789abcdef0123456b", "shortUrl": "https://trello.com/c/c9"}
         )
     )
+    mock_look("0123456789abcdef0123456b", board_labels=[{"id": "lab-idea", "name": "Idea"}])
     created = run(client().create("Ideas", "Dark mode", "Attendees in a dim hall"))
     fields = form(post.calls[0].request)
     assert fields["idList"] == "l-ideas" and fields["name"] == "Dark mode"
@@ -151,6 +187,9 @@ def test_create_posts_to_the_list_id():
         "id": "0123456789abcdef0123456b",
         "url": "https://trello.com/c/c9",
         "list": "Ideas",
+        "label": "Idea",
+        "look_applied": True,
+        "detail": "",
     }
 
 
@@ -296,3 +335,336 @@ def test_no_tool_can_archive():
     from factory_demo.tools_check import expected_tool_names
 
     assert not [name for name in expected_tool_names() if "archive" in name or "delete" in name]
+
+
+def delete_route(path: str) -> respx.Route:
+    return respx.delete(f"{API}{path}").mock(return_value=httpx.Response(200, json={}))
+
+
+@respx.mock
+def test_move_applies_cover_and_replaces_lane_sticker_keeping_star():
+    mock_lists()
+    routes = mock_look(
+        CARD, stickers=[{"id": "s1", "image": "rocketship"}, {"id": "s2", "image": "star"}]
+    )
+    respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    old_lane = delete_route(f"/cards/{CARD}/stickers/s1")
+    star = delete_route(f"/cards/{CARD}/stickers/s2")
+    moved = run(client().move_with_reason(CARD, "Testing", "PR #4 approved"))
+    puts = routes["put"].calls
+    assert form(puts[0].request) == {"idList": "l-testing"}
+    assert body(puts[1].request) == {
+        "cover": {"color": "lime", "brightness": "dark", "size": "normal"}
+    }
+    assert old_lane.called and not star.called
+    assert form(routes["add_sticker"].calls[0].request) == {
+        "image": "thumbsup",
+        "top": "-10",
+        "left": "70",
+        "zIndex": "1",
+    }
+    assert moved == {
+        "id": CARD,
+        "list": "Testing",
+        "comment_posted": True,
+        "look_applied": True,
+        "detail": "",
+    }
+
+
+@respx.mock
+def test_move_to_a_lane_without_cover_clears_it_and_adds_no_sticker():
+    mock_lists()
+    routes = mock_look(CARD, stickers=[{"id": "s1", "image": "warning"}])
+    respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    warning = delete_route(f"/cards/{CARD}/stickers/s1")
+    run(client().move_with_reason(CARD, "Backlog", "Unblocked: back to the queue"))
+    assert body(routes["put"].calls[1].request) == {"cover": None}
+    assert warning.called and not routes["add_sticker"].called
+
+
+@respx.mock
+def test_move_still_happens_when_the_look_fails():
+    mock_lists()
+    routes = mock_look(CARD)
+    routes["put"].mock(side_effect=[httpx.Response(200, json={}), httpx.Response(503, text="down")])
+    comment = respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    moved = run(client().move_with_reason(CARD, "Review", "PR #4 opened"))
+    assert comment.called
+    assert form(routes["put"].calls[0].request) == {"idList": "l-review"}
+    assert moved["list"] == "Review" and moved["comment_posted"] is True
+    assert moved["look_applied"] is False
+    assert "HTTP 503" in moved["detail"]
+    assert "token" not in moved["detail"]
+
+
+@respx.mock
+def test_move_to_done_adds_shipped_and_unblocking_drops_depends_on():
+    mock_lists()
+    routes = mock_look(
+        CARD,
+        card_labels=[{"id": "lab-story", "name": "Story"}, {"id": "lab-dep", "name": "Depends on"}],
+        board_labels=[{"id": "lab-story", "name": "Story", "color": "blue"}],
+    )
+    respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    drop = delete_route(f"/cards/{CARD}/idLabels/lab-dep")
+    run(client().move_with_reason(CARD, "Done", "Tests pass"))
+    assert form(routes["new_label"].calls[0].request) == {
+        "name": "Shipped",
+        "color": "green",
+        "idBoard": "board",
+    }
+    assert form(routes["add_label"].calls[0].request) == {"value": "lab-new"}
+    assert not drop.called
+    run(client().move_with_reason(CARD, "Ready", "Unblocked: the API is back"))
+    assert drop.called
+
+
+@respx.mock
+def test_create_sets_the_type_label():
+    mock_lists()
+    respx.post(f"{API}/cards").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "shortUrl": "https://trello.com/c/c9"})
+    )
+    routes = mock_look(CARD, board_labels=[{"id": "lab-bug", "name": "Bug", "color": "red"}])
+    created = run(client().create("Ideas", "Bug: times show in UTC", "They should be local"))
+    assert created["label"] == "Bug" and created["look_applied"] is True
+    assert form(routes["add_label"].calls[0].request) == {"value": "lab-bug"}
+    assert not routes["new_label"].called
+    assert body(routes["put"].calls[0].request) == {"cover": None}
+
+
+@respx.mock
+def test_create_reports_a_look_failure_but_keeps_the_card():
+    mock_lists()
+    respx.post(f"{API}/cards").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "shortUrl": "u"})
+    )
+    routes = mock_look(CARD)
+    routes["board_labels"].mock(return_value=httpx.Response(500, text="oops"))
+    created = run(client().create("Backlog", "Add a map", "d"))
+    assert created["id"] == CARD and created["label"] == "Story"
+    assert created["look_applied"] is False and "HTTP 500" in created["detail"]
+
+
+@respx.mock
+def test_ensure_label_creates_missing_known_labels_only():
+    routes = mock_look(CARD, board_labels=[{"id": "lab-idea", "name": "Idea", "color": "sky"}])
+    c = client()
+    assert run(c.ensure_label("Idea")) == "lab-idea"
+    assert not routes["new_label"].called
+    assert run(c.ensure_label("Depends on")) == "lab-new"
+    assert form(routes["new_label"].calls[0].request) == {
+        "name": "Depends on",
+        "color": "orange",
+        "idBoard": "board",
+    }
+    with pytest.raises(ToolError, match="No label named 'Urgent'.*Bug.*High severity"):
+        run(c.ensure_label("Urgent"))
+    assert routes["new_label"].call_count == 1
+
+
+@respx.mock
+def test_board_labels_skip_unnamed_ones():
+    mock_look(
+        CARD, board_labels=[{"id": "x", "name": "", "color": "red"}, {"id": "b", "name": "Bug"}]
+    )
+    assert run(client().board_labels()) == {"Bug": "b"}
+
+
+@respx.mock
+def test_add_and_remove_label_check_the_card_first():
+    routes = mock_look(
+        CARD,
+        card_labels=[{"id": "lab-tg", "name": "Proposed via Telegram"}],
+        board_labels=[{"id": "lab-tg", "name": "Proposed via Telegram"}],
+    )
+    drop = delete_route(f"/cards/{CARD}/idLabels/lab-tg")
+    c = client()
+    assert run(c.card_labels(CARD)) == ("Proposed via Telegram",)
+    assert run(c.add_label(CARD, "Proposed via Telegram")) == {
+        "id": CARD,
+        "label": "Proposed via Telegram",
+        "added": False,
+    }
+    assert not routes["add_label"].called
+    assert run(c.add_label(CARD, "Spike"))["added"] is True
+    assert run(c.remove_label(CARD, "Proposed via Telegram"))["removed"] is True
+    assert drop.called
+    assert run(c.remove_label(CARD, "Bug"))["removed"] is False
+
+
+CHECKLISTS = [
+    {
+        "id": "cl-old",
+        "name": "Acceptance criteria",
+        "checkItems": [
+            {
+                "id": "i1",
+                "name": "Given a session, when I star it, then it shows",
+                "state": "incomplete",
+            },
+            {"id": "i2", "name": "The header counts sessions", "state": "complete"},
+        ],
+    },
+    {"id": "cl-notes", "name": "Notes", "checkItems": []},
+]
+
+
+def mock_checklists(card_id: str = CARD) -> dict[str, respx.Route]:
+    return {
+        "card": respx.get(f"{API}/cards/{card_id}").mock(
+            return_value=httpx.Response(200, json={"id": card_id, "idBoard": "board"})
+        ),
+        "list": respx.get(f"{API}/cards/{card_id}/checklists").mock(
+            return_value=httpx.Response(200, json=CHECKLISTS)
+        ),
+        "check": respx.put(url__regex=rf"{API}/cards/{card_id}/checkItem/\w+").mock(
+            return_value=httpx.Response(200, json={})
+        ),
+    }
+
+
+@respx.mock
+def test_add_checklist_replaces_existing_items():
+    mock_checklists()
+    old = delete_route("/checklists/cl-old")
+    notes = delete_route("/checklists/cl-notes")
+    create = respx.post(f"{API}/cards/{CARD}/checklists").mock(
+        return_value=httpx.Response(200, json={"id": "cl-new"})
+    )
+    item = respx.post(f"{API}/checklists/cl-new/checkItems").mock(
+        return_value=httpx.Response(200, json={"id": "i"})
+    )
+    items = ("Stars persist", "Header shows the count", "Works offline")
+    assert run(client().add_checklist(CARD, items)) == {"id": CARD, "checklist_items": 3}
+    assert old.called and not notes.called
+    assert form(create.calls[0].request) == {"name": "Acceptance criteria"}
+    assert [form(call.request) for call in item.calls] == [
+        {"name": text, "checked": "false"} for text in items
+    ]
+
+
+@respx.mock
+def test_checklist_items_reads_only_the_acceptance_criteria():
+    mock_checklists()
+    assert run(client().checklist_items(CARD)) == (
+        ("Given a session, when I star it, then it shows", "incomplete"),
+        ("The header counts sessions", "complete"),
+    )
+
+
+@respx.mock
+def test_check_item_matches_exact_text_then_a_prefix():
+    routes = mock_checklists()
+    c = client()
+    ticked = run(c.check_item(CARD, "given a session"))
+    assert ticked == {
+        "id": CARD,
+        "item": "Given a session, when I star it, then it shows",
+        "already_complete": False,
+    }
+    request = routes["check"].calls[0].request
+    assert request.url.path.endswith("/checkItem/i1")
+    assert form(request) == {"state": "complete"}
+    again = run(c.check_item(CARD, "The header counts sessions"))
+    assert again["already_complete"] is True
+    assert routes["check"].call_count == 1
+
+
+@respx.mock
+def test_check_item_names_the_items_when_missing():
+    routes = mock_checklists()
+    with pytest.raises(ToolError) as caught:
+        run(client().check_item(CARD, "Dark mode works"))
+    message = str(caught.value)
+    assert "No acceptance criterion matches 'Dark mode works'" in message
+    assert "Given a session, when I star it, then it shows" in message
+    assert "The header counts sessions" in message
+    assert not routes["check"].called
+
+
+def test_set_priority_toggles_star_and_label():
+    with respx.mock:
+        routes = mock_look(CARD, board_labels=[{"id": "lab-high", "name": "High severity"}])
+        assert run(client().set_priority(CARD, True)) == {"id": CARD, "high": True}
+        assert form(routes["add_sticker"].calls[0].request) == {
+            "image": "star",
+            "top": "-10",
+            "left": "0",
+            "zIndex": "2",
+        }
+        assert form(routes["add_label"].calls[0].request) == {"value": "lab-high"}
+    with respx.mock:
+        routes = mock_look(
+            CARD,
+            stickers=[{"id": "s9", "image": "star"}, {"id": "s1", "image": "check"}],
+            card_labels=[{"id": "lab-high", "name": "High severity"}],
+            board_labels=[{"id": "lab-high", "name": "High severity"}],
+        )
+        star = delete_route(f"/cards/{CARD}/stickers/s9")
+        check = delete_route(f"/cards/{CARD}/stickers/s1")
+        label = delete_route(f"/cards/{CARD}/idLabels/lab-high")
+        assert run(client().set_priority(CARD, False)) == {"id": CARD, "high": False}
+        assert star.called and label.called and not check.called
+        assert not routes["add_sticker"].called
+
+
+@respx.mock
+def test_star_is_not_added_twice():
+    routes = mock_look(CARD, stickers=[{"id": "s9", "image": "star"}])
+    run(client().set_star(CARD, True))
+    assert not routes["add_sticker"].called
+
+
+def test_look_calls_refuse_ids_that_are_not_trello_ids():
+    with pytest.raises(ToolError, match="not a Trello card id"):
+        run(client().set_cover("../boards/x", "red"))
+
+
+@respx.mock
+def test_checklist_calls_explain_an_empty_or_missing_checklist():
+    routes = mock_checklists()
+    routes["list"].mock(return_value=httpx.Response(200, json=[]))
+    c = client()
+    with pytest.raises(ToolError, match="no Acceptance criteria checklist yet"):
+        run(c.check_item(CARD, "Stars persist"))
+    with pytest.raises(ToolError, match="at least one acceptance criterion"):
+        run(c.add_checklist(CARD, ()))
+    assert run(c.checklist_items(CARD)) == ()
+
+
+@respx.mock
+def test_blank_text_never_ticks_the_first_item():
+    routes = mock_checklists()
+    with pytest.raises(ToolError, match="No acceptance criterion matches"):
+        run(client().check_item(CARD, "   "))
+    assert not routes["check"].called
+
+
+@respx.mock
+def test_a_trello_reply_without_an_id_is_an_error_not_a_blank_call():
+    routes = mock_look(CARD)
+    routes["new_label"].mock(return_value=httpx.Response(200, json={}))
+    with pytest.raises(ToolError, match="Trello did not return an id for the new label"):
+        run(client().add_label(CARD, "Spike"))
+    assert not routes["add_label"].called
+    mock_checklists()
+    respx.post(f"{API}/cards/{CARD}/checklists").mock(return_value=httpx.Response(200, json={}))
+    delete_route("/checklists/cl-old")
+    with pytest.raises(ToolError, match="Trello did not return an id for the new checklist"):
+        run(client().add_checklist(CARD, ("Stars persist",)))
+
+
+@respx.mock
+def test_malformed_board_labels_are_skipped():
+    mock_look(CARD, board_labels=[{"name": "Bug"}, {"id": "s", "name": "Spike"}])
+    assert run(client().board_labels()) == {"Spike": "s"}

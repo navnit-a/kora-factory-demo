@@ -7,6 +7,8 @@ from fastmcp.exceptions import ToolError
 
 from factory_tools.http import json_or_error, request, truncate
 from factory_tools.lists import lists_sentence
+from factory_tools.trello import checklist_client, look_client
+from factory_tools.trello.look import type_label
 
 API = "https://api.trello.com/1"
 COMMENT_TAIL = 5
@@ -23,6 +25,20 @@ class TrelloClient:
     token: str
     board_id: str
     http: httpx.AsyncClient
+
+    set_cover = look_client.set_cover
+    stickers = look_client.stickers
+    set_lane_sticker = look_client.set_lane_sticker
+    set_star = look_client.set_star
+    board_labels = look_client.board_labels
+    ensure_label = look_client.ensure_label
+    card_labels = look_client.card_labels
+    add_label = look_client.add_label
+    remove_label = look_client.remove_label
+    set_priority = look_client.set_priority
+    add_checklist = checklist_client.add_checklist
+    checklist_items = checklist_client.checklist_items
+    check_item = checklist_client.check_item
 
     @classmethod
     def from_env(cls, http: httpx.AsyncClient) -> "TrelloClient":
@@ -72,7 +88,17 @@ class TrelloClient:
         list_id = _list_id(await self.list_ids(), to_list)
         await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": reason})
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
-        return {"id": card_id, "list": to_list, "comment_posted": True}
+        look = await self.apply_look(card_id, to_list, reason)
+        return {"id": card_id, "list": to_list, "comment_posted": True, **look}
+
+    async def apply_look(
+        self, card_id: str, to_list: str, reason: str, extra_labels: tuple[str, ...] = ()
+    ) -> dict:
+        try:
+            await look_client.dress(self, card_id, to_list, reason, extra_labels)
+        except ToolError as error:
+            return {"look_applied": False, "detail": str(error)}
+        return {"look_applied": True, "detail": ""}
 
     async def comment(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")
@@ -84,7 +110,11 @@ class TrelloClient:
         body = await self._write(
             "POST", "/cards", {"idList": list_id, "name": title, "desc": description}
         )
-        return {"id": body.get("id", ""), "url": body.get("shortUrl", ""), "list": list_name}
+        card_id = body.get("id", "")
+        label = type_label(title, list_name)
+        look = await self.apply_look(card_id, list_name, "", (label,))
+        created = {"id": card_id, "url": body.get("shortUrl", ""), "list": list_name}
+        return {**created, "label": label, **look}
 
     async def set_description(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")
@@ -96,12 +126,15 @@ class TrelloClient:
         await self._write("PUT", f"/cards/{card_id}", {"closed": "true"})
         return {"id": card_id, "archived": True}
 
-    async def _board_card(self, card_id: str, fields: str) -> dict:
+    def _checked_id(self, card_id: str) -> str:
         if not CARD_ID.match(card_id):
             raise ToolError(
                 f"'{card_id}' is not a Trello card id; use an id from trello_list_cards."
             )
-        card = await self._read(f"/cards/{card_id}", {"fields": fields})
+        return card_id
+
+    async def _board_card(self, card_id: str, fields: str) -> dict:
+        card = await self._read(f"/cards/{self._checked_id(card_id)}", {"fields": fields})
         if card.get("idBoard") != self.board_id:
             raise ToolError(
                 f"Card {card_id} is not on the factory board; only its cards can be used."
@@ -115,11 +148,17 @@ class TrelloClient:
         return json_or_error(response, "Trello", READ_HINT)
 
     async def _write(self, method: str, path: str, fields: dict) -> dict:
+        return await self._send_write(method, path, data=fields)
+
+    async def _write_json(self, method: str, path: str, payload: dict) -> dict:
+        return await self._send_write(method, path, json=payload)
+
+    async def _send_write(self, method: str, path: str, **body: dict) -> dict:
         response = await request(
-            self.http, "Trello", method, API + path, WRITE_HINT, params=self._auth(), data=fields
+            self.http, "Trello", method, API + path, WRITE_HINT, params=self._auth(), **body
         )
-        body = json_or_error(response, "Trello", WRITE_HINT)
-        return body if isinstance(body, dict) else {}
+        reply = json_or_error(response, "Trello", WRITE_HINT)
+        return reply if isinstance(reply, dict) else {}
 
     def _auth(self) -> dict[str, str]:
         return {"key": self.key, "token": self.token}

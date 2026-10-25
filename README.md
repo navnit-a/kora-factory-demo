@@ -100,6 +100,19 @@ committed, pasted into a prompt, or shown on screen.
   sorts by distance itself.
 - Foundry rejects some Claude Code requests with `thinking.adaptive.display`, because Claude Code asks
   for the `updates` display mode, a beta Foundry does not accept yet. Runs still finish.
+- kora treats each GitHub level as its own action: `pulls:write` does not cover reading pull
+  requests, so every write grant carries its read beside it.
+- kora cannot tie a GraphQL mutation that names its target by node id to a repository, so
+  `gh pr create`, `gh pr review` and `gh pr merge` need a grant on every repository. The agents use
+  the REST endpoints under `repos/navnit-a/platformcon-day-planner/` instead, which a grant on that
+  one repository covers.
+- kora mints `checks:read` together with GitHub's `statuses` permission, which the App does not hold,
+  so `gh pr checks` is refused. The tester reads CI from the Actions run whose `headSha` is the pull
+  request head, which needs only `actions:read`.
+- The `Connection` resource has no status. The operator's log line "updated aggregated connections
+  ConfigMap" and a live `gh` call from an agent are the check that it works.
+- The reviewer and tester found the first three by moving the card to Blocked with the exact grant
+  they were refused. The developer, refused `gh pr create`, switched to the REST endpoint itself.
 
 ## Product repo
 

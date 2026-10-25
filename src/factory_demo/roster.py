@@ -14,8 +14,15 @@ MASONIC_CENTRE = ("-33.8776", "151.2048")
 TRELLO_READ = ("trello_list_cards", "trello_get_card")
 TRELLO_WORK = (*TRELLO_READ, "trello_move_card", "trello_comment_card")
 TELEGRAM = ("telegram_send_message",)
-GITHUB_WRITE = ("contents:write", "pulls:write", "checks:read", "actions:read")
-GITHUB_REVIEW = ("contents:read", "pulls:write", "checks:read", "actions:read")
+GITHUB_WRITE = (
+    "contents:read",
+    "contents:write",
+    "pulls:read",
+    "pulls:write",
+    "checks:read",
+    "actions:read",
+)
+GITHUB_REVIEW = ("contents:read", "pulls:read", "pulls:write", "checks:read", "actions:read")
 GITHUB_READ = ("contents:read", "actions:read", "checks:read")
 TEAM_RUN_LIMIT_USD = 0.20
 TEAM_WEEKLY_USD = 3.0

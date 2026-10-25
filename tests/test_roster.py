@@ -118,3 +118,16 @@ def test_lunch_run_now_defaults_to_the_venue():
 def test_delivery_lead_can_post_the_stand_up_on_demand():
     names = [m.name for m in by_slug("delivery-lead").manuals]
     assert names == ["run now", "stand-up now"]
+
+
+def test_every_write_grant_carries_its_read_because_kora_levels_are_separate():
+    for spec in ROSTER:
+        for action in spec.github_actions:
+            surface, level = action.split(":")
+            if level == "write":
+                assert f"{surface}:read" in spec.github_actions, (spec.slug, action)
+
+
+def test_pr_finders_can_read_pull_requests():
+    for slug in BUILDERS:
+        assert "pulls:read" in by_slug(slug).github_actions, slug

@@ -27,7 +27,14 @@ def test_developer_request_has_github_connector_on_one_repo():
     assert request["connectors"] == [
         {
             "connection": "github",
-            "actions": ["contents:write", "pulls:write", "checks:read", "actions:read"],
+            "actions": [
+                "contents:read",
+                "contents:write",
+                "pulls:read",
+                "pulls:write",
+                "checks:read",
+                "actions:read",
+            ],
             "resources": ["platformcon-day-planner"],
         }
     ]

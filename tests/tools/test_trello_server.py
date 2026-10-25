@@ -149,8 +149,18 @@ def test_get_card_returns_description_and_comments():
     respx.get(f"{API}/cards/0123456789abcdef0123456a/actions").mock(
         return_value=httpx.Response(200, json=[])
     )
+    respx.get(f"{API}/cards/0123456789abcdef0123456a/checklists").mock(
+        return_value=httpx.Response(200, json=[])
+    )
     card = run(call("trello_get_card", card_id="0123456789abcdef0123456a"))
     assert card["description"] == "D" and card["list"] == "Ideas" and card["comments"] == []
+    assert card["labels"] == [] and card["checklist"] == []
+
+
+def test_get_card_description_names_labels_and_the_checklist():
+    tool = run(tools())["trello_get_card"]
+    assert "labels" in tool.description
+    assert "Acceptance criteria" in tool.description
 
 
 @respx.mock

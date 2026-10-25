@@ -57,8 +57,9 @@ async def trello_list_cards(
 
 @mcp.tool(
     annotations=READ,
-    description="Read one card in full: title, list, description and its last five comments, "
-    "newest first.",
+    description="Read one card in full: title, list, description, its last five comments "
+    f"newest first, its labels by name and its '{CHECKLIST_NAME}' checklist items with each "
+    "item's state (complete or incomplete; empty when the card has none).",
 )
 async def trello_get_card(card_id: CardId) -> dict:
     return await with_trello(lambda trello: trello.card(card_id))

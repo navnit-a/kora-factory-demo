@@ -143,9 +143,13 @@ def test_card_includes_last_five_comments_truncated():
             json=[{"date": "2026-10-25T00:59:00.000Z", "data": {"text": "x" * 1300}}],
         )
     )
+    respx.get(f"{API}/cards/0123456789abcdef0123456a/checklists").mock(
+        return_value=httpx.Response(200, json=[])
+    )
     card = run(client().card("0123456789abcdef0123456a"))
     assert card["list"] == "Review"
     assert card["description"].endswith(" (truncated)")
+    assert card["labels"] == [] and card["checklist"] == []
     assert card["comments"] == [
         {"when": "2026-10-25T00:59:00.000Z", "text": "x" * 1200 + " (truncated)"}
     ]
@@ -757,3 +761,49 @@ def test_card_look_refuses_labels_that_are_not_a_list():
     respx.get(f"{API}/cards/{CARD}").mock(return_value=httpx.Response(200, json=card))
     with pytest.raises(ToolError, match="labels"):
         run(client().card_look(CARD))
+
+
+@respx.mock
+def test_card_shows_its_label_names_and_acceptance_criteria():
+    mock_lists()
+    respx.get(f"{API}/cards/{CARD}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": CARD,
+                "name": "Count the sessions",
+                "idList": "l-testing",
+                "idBoard": "board",
+                "cover": {"color": "lime"},
+                "labels": [
+                    {"id": "a", "name": "Story", "color": "blue"},
+                    {"id": "b", "name": "", "color": "green"},
+                    {"id": "c", "name": "High severity", "color": "red"},
+                ],
+            },
+        )
+    )
+    respx.get(f"{API}/cards/{CARD}/actions").mock(return_value=httpx.Response(200, json=[]))
+    respx.get(f"{API}/cards/{CARD}/checklists").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"id": "x", "name": "Notes", "checkItems": [{"id": "n", "name": "skip"}]},
+                {
+                    "id": "k",
+                    "name": "Acceptance criteria",
+                    "checkItems": [
+                        {"id": "i1", "name": "Shows the count", "state": "complete"},
+                        {"id": "i2", "name": "Counts from data", "state": "incomplete"},
+                    ],
+                },
+            ],
+        )
+    )
+    card = run(client().card(CARD))
+    assert card["list"] == "Testing"
+    assert card["labels"] == ["Story", "High severity"]
+    assert card["checklist"] == [
+        {"text": "Shows the count", "state": "complete"},
+        {"text": "Counts from data", "state": "incomplete"},
+    ]

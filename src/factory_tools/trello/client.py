@@ -7,7 +7,7 @@ from fastmcp.exceptions import ToolError
 
 from factory_tools.http import json_or_error, request, truncate
 from factory_tools.lists import lists_sentence
-from factory_tools.trello import checklist_client, look_client
+from factory_tools.trello import card_view, checklist_client, look_client
 from factory_tools.trello.look import type_label
 
 API = "https://api.trello.com/1"
@@ -78,6 +78,7 @@ class TrelloClient:
             **_summary(card, names.get(card.get("idList"), "")),
             "description": truncate(card.get("desc", "")),
             "comments": comments,
+            **await card_view.labels_and_checklist(self, card_id),
         }
 
     async def move(self, card_id: str, to_list: str) -> dict:

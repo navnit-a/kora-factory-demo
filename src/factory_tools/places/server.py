@@ -14,6 +14,8 @@ ATTRIBUTION = "Data: OpenStreetMap contributors, ODbL"
 USER_AGENT = "kora-factory-demo (platformcon day planner)"
 EARTH_RADIUS_M = 6_371_000
 MAX_CANDIDATES = 200
+OVERPASS_QUERY_TIMEOUT_S = 50
+OVERPASS_CLIENT_TIMEOUT_S = 60.0
 OVERPASS_HINT = "Overpass did not answer in time: retry in a minute or use a smaller radius."
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
 
@@ -39,12 +41,18 @@ async def places_lunch_nearby(
     limit: Annotated[int, Field(ge=1, le=10, description="How many places to return.")] = 3,
 ) -> dict:
     query = (
-        f'[out:json][timeout:25];(node["amenity"~"cafe|restaurant"]["name"]'
+        f'[out:json][timeout:{OVERPASS_QUERY_TIMEOUT_S}];(node["amenity"~"cafe|restaurant"]["name"]'
         f"(around:{radius_m},{latitude},{longitude}););out {MAX_CANDIDATES};"
     )
     async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as http:
         response = await request(
-            http, "Overpass", "POST", OVERPASS_URL, hint=OVERPASS_HINT, data={"data": query}
+            http,
+            "Overpass",
+            "POST",
+            OVERPASS_URL,
+            hint=OVERPASS_HINT,
+            timeout_s=OVERPASS_CLIENT_TIMEOUT_S,
+            data={"data": query},
         )
     payload = json_or_error(response, "Overpass", OVERPASS_HINT)
     if "runtime error" in str(payload.get("remark", "")):

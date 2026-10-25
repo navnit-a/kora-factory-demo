@@ -76,9 +76,9 @@ def test_serve_binds_to_loopback_unless_told_otherwise(monkeypatch):
 
 
 def test_client_waits_longer_than_overpass_query_timeout():
-    from factory_tools.http import DEFAULT_TIMEOUT_S
+    from factory_tools.places.server import OVERPASS_CLIENT_TIMEOUT_S, OVERPASS_QUERY_TIMEOUT_S
 
-    assert DEFAULT_TIMEOUT_S > 25
+    assert OVERPASS_CLIENT_TIMEOUT_S > OVERPASS_QUERY_TIMEOUT_S
 
 
 def test_no_tool_uses_a_docstring_for_its_description():

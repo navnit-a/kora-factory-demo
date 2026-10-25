@@ -101,3 +101,13 @@ def test_client_timeout_is_a_tool_error_with_the_hint():
     respx.post(OVERPASS_URL).mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(ToolError, match="Overpass did not answer in time"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+
+
+@respx.mock
+def test_slow_overpass_gets_a_minute():
+    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=FIXTURE))
+    run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    query = dict(httpx.QueryParams(route.calls[0].request.content.decode()))["data"]
+    assert query.startswith("[out:json][timeout:50];")
+    timeout = route.calls[0].request.extensions["timeout"]
+    assert timeout["read"] == 60.0

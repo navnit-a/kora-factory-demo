@@ -1,9 +1,9 @@
 {
   "elements": [
-    {"type": "node", "id": 1, "lat": -33.8784, "lon": 151.2078, "tags": {"amenity": "cafe", "name": "Corner Cafe", "addr:street": "Goulburn Street"}},
-    {"type": "node", "id": 2, "lat": -33.8795, "lon": 151.2089, "tags": {"amenity": "restaurant", "name": "Spice Lane", "cuisine": "thai"}},
-    {"type": "node", "id": 3, "lat": -33.8773, "lon": 151.2071, "tags": {"amenity": "restaurant", "name": "Harbour Noodle", "cuisine": "chinese", "addr:street": "Pitt Street"}},
-    {"type": "node", "id": 4, "lat": -33.8805, "lon": 151.2104, "tags": {"amenity": "cafe", "name": "Far Away Coffee"}},
-    {"type": "node", "id": 5, "lat": -33.8782, "lon": 151.2077, "tags": {"amenity": "cafe"}}
+    {"type": "node", "id": 1, "lat": -33.8784, "lon": 151.2091, "tags": {"amenity": "cafe", "name": "Corner Cafe", "addr:street": "Goulburn Street"}},
+    {"type": "node", "id": 2, "lat": -33.8795, "lon": 151.2102, "tags": {"amenity": "restaurant", "name": "Spice Lane", "cuisine": "thai"}},
+    {"type": "node", "id": 3, "lat": -33.8773, "lon": 151.2084, "tags": {"amenity": "restaurant", "name": "Harbour Noodle", "cuisine": "chinese", "addr:street": "Pitt Street"}},
+    {"type": "node", "id": 4, "lat": -33.8805, "lon": 151.2117, "tags": {"amenity": "cafe", "name": "Far Away Coffee"}},
+    {"type": "node", "id": 5, "lat": -33.8782, "lon": 151.2090, "tags": {"amenity": "cafe"}}
   ]
 }

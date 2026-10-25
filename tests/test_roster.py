@@ -274,7 +274,7 @@ def test_lunch_run_now_defaults_to_the_venue():
     assert inputs == {
         "place": "Sydney Masonic Centre",
         "latitude": "-33.8781",
-        "longitude": "151.2077",
+        "longitude": "151.2090",
     }
     for name in inputs:
         assert "{{ var." + name + " }}" in manual.prompt

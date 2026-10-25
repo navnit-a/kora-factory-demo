@@ -12,7 +12,7 @@ from factory_tools.places import server
 from factory_tools.places.server import ATTRIBUTION, OVERPASS_URL, rank_places
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "overpass_lunch.json").read_text())
-VENUE = (-33.8781, 151.2077)
+VENUE = (-33.8781, 151.2090)
 
 
 async def lunch(**arguments) -> dict:
@@ -40,15 +40,15 @@ def test_rank_places_sorts_by_distance_and_limits():
         "distance_m": 35,
         "street": "Goulburn Street",
         "lat": -33.8784,
-        "lon": 151.2078,
+        "lon": 151.2091,
     }
     assert places[2]["cuisine"] == "thai"
 
 
 def test_rank_places_keeps_each_places_coordinates():
-    elements = [{"lat": -33.8784, "lon": 151.2080, "tags": {"name": "Cafe A", "amenity": "cafe"}}]
-    [place] = rank_places(elements, -33.8781, 151.2077, 3)
-    assert (place["lat"], place["lon"]) == (-33.8784, 151.2080)
+    elements = [{"lat": -33.8784, "lon": 151.2093, "tags": {"name": "Cafe A", "amenity": "cafe"}}]
+    [place] = rank_places(elements, -33.8781, 151.2090, 3)
+    assert (place["lat"], place["lon"]) == (-33.8784, 151.2093)
 
 
 def test_rank_skips_nodes_without_a_name():
@@ -64,7 +64,7 @@ def test_tool_queries_overpass_around_the_point_and_attributes_osm():
     assert result["searched_radius_m"] == 600
     assert result["attribution"] == ATTRIBUTION == "Data: OpenStreetMap contributors, ODbL"
     query = dict(httpx.QueryParams(route.calls[0].request.content.decode()))["data"]
-    assert "around:600,-33.8781,151.2077" in query
+    assert "around:600,-33.8781,151.209" in query
     assert query.endswith("out 200;")
     assert route.calls[0].request.headers["user-agent"].startswith("kora-factory-demo")
 

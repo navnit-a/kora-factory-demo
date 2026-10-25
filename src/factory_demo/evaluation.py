@@ -152,7 +152,7 @@ FIXTURES: dict[str, Fixture] = {
         "",
         None,
         expect_post="OpenStreetMap",
-        inputs={"place": "Sydney Masonic Centre", "latitude": "-33.8781", "longitude": "151.2077"},
+        inputs={"place": "Sydney Masonic Centre", "latitude": "-33.8781", "longitude": "151.2090"},
         expect_pr_head=LUNCH_BRANCH,
     ),
     "idea-scout": Fixture(

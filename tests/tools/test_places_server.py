@@ -24,6 +24,12 @@ def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def isolated_cache(tmp_path, monkeypatch):
+    monkeypatch.setenv("PLACES_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(server, "RETRY_DELAYS_S", (0, 0))
+
+
 def test_rank_places_sorts_by_distance_and_limits():
     places = rank_places(FIXTURE["elements"], *VENUE, limit=3)
     assert [p["name"] for p in places] == ["Corner Cafe", "Harbour Noodle", "Spice Lane"]
@@ -111,3 +117,47 @@ def test_slow_overpass_gets_a_minute():
     assert query.startswith("[out:json][timeout:50];")
     timeout = route.calls[0].request.extensions["timeout"]
     assert timeout["read"] == 60.0
+
+
+@respx.mock
+def test_overpass_at_capacity_is_retried_then_answers():
+    route = respx.post(OVERPASS_URL).mock(
+        side_effect=[
+            httpx.Response(502, text="server is currently at capacity"),
+            httpx.Response(200, json=FIXTURE),
+        ]
+    )
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert route.call_count == 2
+    assert "cached_at" not in result
+    assert result["places"][0]["name"] == "Corner Cafe"
+
+
+@respx.mock
+def test_last_good_answer_is_served_when_overpass_stays_down():
+    respx.post(OVERPASS_URL).mock(
+        side_effect=[httpx.Response(200, json=FIXTURE), *[httpx.Response(502, text="busy")] * 3]
+    )
+    fresh = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    cached = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert cached["places"] == fresh["places"]
+    assert cached["cached_at"]
+    assert cached["attribution"] == ATTRIBUTION
+
+
+@respx.mock
+def test_without_a_cached_answer_overpass_down_is_a_retry_hint():
+    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(502, text="busy"))
+    with pytest.raises(ToolError, match="retry in a minute"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert route.call_count == 3
+
+
+@respx.mock
+def test_a_cached_answer_is_only_for_the_same_point_and_radius():
+    respx.post(OVERPASS_URL).mock(
+        side_effect=[httpx.Response(200, json=FIXTURE), *[httpx.Response(502, text="busy")] * 3]
+    )
+    run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    with pytest.raises(ToolError):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1], radius_m=900))

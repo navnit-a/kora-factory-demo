@@ -195,3 +195,7 @@ def test_support_trusts_only_push_runs_on_the_current_main():
     assert "headSha" in text
     assert "commits/main" in text
     assert "displayTitle" not in text
+
+
+def test_lunch_says_when_places_come_from_earlier():
+    assert "cached_at" in prompt("lunch")

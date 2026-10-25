@@ -1,3 +1,4 @@
+import asyncio
 from math import asin, cos, radians, sin, sqrt
 from typing import Annotated
 
@@ -8,6 +9,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from factory_tools.http import json_or_error, request
+from factory_tools.places.cache import cache_key, read_cached, write_cached
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 ATTRIBUTION = "Data: OpenStreetMap contributors, ODbL"
@@ -16,6 +18,7 @@ EARTH_RADIUS_M = 6_371_000
 MAX_CANDIDATES = 200
 OVERPASS_QUERY_TIMEOUT_S = 50
 OVERPASS_CLIENT_TIMEOUT_S = 60.0
+RETRY_DELAYS_S = (5, 15)
 OVERPASS_HINT = "Overpass did not answer in time: retry in a minute or use a smaller radius."
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
 
@@ -44,25 +47,46 @@ async def places_lunch_nearby(
         f'[out:json][timeout:{OVERPASS_QUERY_TIMEOUT_S}];(node["amenity"~"cafe|restaurant"]["name"]'
         f"(around:{radius_m},{latitude},{longitude}););out {MAX_CANDIDATES};"
     )
-    async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as http:
-        response = await request(
-            http,
-            "Overpass",
-            "POST",
-            OVERPASS_URL,
-            hint=OVERPASS_HINT,
-            timeout_s=OVERPASS_CLIENT_TIMEOUT_S,
-            data={"data": query},
-        )
-    payload = json_or_error(response, "Overpass", OVERPASS_HINT)
-    if "runtime error" in str(payload.get("remark", "")):
-        raise ToolError(OVERPASS_HINT)
+    key = cache_key(latitude, longitude, radius_m, limit)
+    try:
+        payload = await _overpass(query)
+    except ToolError:
+        cached = read_cached(key)
+        if cached is None:
+            raise
+        return cached
     places = rank_places(payload.get("elements", []), latitude, longitude, limit)
     if not places:
         raise ToolError(
             f"There are no cafes or restaurants within {radius_m} m; try a larger radius."
         )
-    return {"places": places, "searched_radius_m": radius_m, "attribution": ATTRIBUTION}
+    result = {"places": places, "searched_radius_m": radius_m, "attribution": ATTRIBUTION}
+    write_cached(key, result)
+    return result
+
+
+async def _overpass(query: str) -> dict:
+    async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as http:
+        for delay in (*RETRY_DELAYS_S, None):
+            try:
+                response = await request(
+                    http,
+                    "Overpass",
+                    "POST",
+                    OVERPASS_URL,
+                    hint=OVERPASS_HINT,
+                    timeout_s=OVERPASS_CLIENT_TIMEOUT_S,
+                    data={"data": query},
+                )
+                break
+            except ToolError as error:
+                if delay is None or "HTTP 5" not in str(error):
+                    raise
+                await asyncio.sleep(delay)
+    payload = json_or_error(response, "Overpass", OVERPASS_HINT)
+    if "runtime error" in str(payload.get("remark", "")):
+        raise ToolError(OVERPASS_HINT)
+    return payload
 
 
 def rank_places(elements: list[dict], lat: float, lon: float, limit: int) -> list[dict]:

@@ -13,7 +13,8 @@ near the place and coordinates given in your run message, from OpenStreetMap dat
 
 <tools>
 - `places_lunch_nearby`: cafes and restaurants within a radius, nearest first, each with `name`,
-  `kind`, `cuisine`, `distance_m` and `street`, plus an attribution line.
+  `kind`, `cuisine`, `distance_m` and `street`, plus an attribution line, and `cached_at` when
+  the answer is from earlier.
 - `telegram_send_message`: post the suggestions once.
 </tools>
 
@@ -22,7 +23,8 @@ near the place and coordinates given in your run message, from OpenStreetMap dat
    600 and `limit` 6, so you can choose three that differ.
 2. Pick three: prefer variety in `kind` and `cuisine` over the three nearest.
 3. Write one plain-text post:
-   - First line: `Lunch near <place>`.
+   - First line: `Lunch near <place>`, followed by ` (places from earlier today)` when the result
+     has `cached_at`, because then OpenStreetMap could not be reached just now.
    - One line per pick: `<name>, <distance_m> m on <street>: <reason>`, where the reason is one
      short phrase drawn from its `kind` and `cuisine` (`a cafe for something quick`, `Vietnamese,
      good for a group`). Leave out `on <street>` when the street is empty.

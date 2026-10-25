@@ -59,9 +59,11 @@ First time, or after `make reset`:
     `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
     agent ops schedule paused.
 
-15. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token, allowed only to
-    fire `Idea scout: scout` and read the scout's runs, and writes `KORA_BRIDGE_TOKEN` and
-    `KORA_SCOUT_TRIGGER_ID` into `.env`. It prints the expiry date.
+15. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token through a
+    loopback port-forward to the identity service. The token may fire `Idea scout: scout`, read
+    deliveries and read the scout's runs. The script writes `KORA_BRIDGE_TOKEN` and
+    `KORA_SCOUT_TRIGGER_ID` into `.env` and prints the expiry date. The token's grant takes about a
+    minute to reach the gateway, so wait that long before the first bridge start.
 
 16. `scripts/session-start.sh` now also starts the bridge in the background on this Mac, logging to
     `deploy/generated/bridge.log`; `scripts/session-stop.sh` stops it.
@@ -81,9 +83,9 @@ or `KORA_CA_FILE`.
 Anyone on the allowlist can DM the bot `/idea <text>`. The bridge acknowledges it and fires the idea
 scout, which reads the planner without writing anything, writes the idea up as a story with
 acceptance criteria and judges whether the planner can build it as it is, once it has something
-else, or not at all. The bridge sends that write-up back; when the proposer replies `yes`, the card
-appears in Ideas and the product owner picks it up from there. `no` drops it. An idea the scout
-judges not buildable stays off the board.
+else, or not at all. The bridge sends that write-up back; when the proposer replies `yes` within 30
+minutes, the card appears in Ideas and the product owner picks it up from there. `no` drops it. An
+idea the scout judges not buildable stays off the board.
 
 The allowlist is `deploy/generated/ideas-allowlist` (gitignored). Someone not on it gets a refusal
 that names their Telegram id; `uv run python scripts/ideas-allow.py <id> [name]` adds them. Each

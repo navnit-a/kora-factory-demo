@@ -1,4 +1,6 @@
 import importlib.util
+import io
+import json
 import os
 import re
 import shutil
@@ -6,9 +8,12 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
+import httpx
 import pytest
+import respx
 
 from factory_bridge import replies
 from factory_bridge.scout_result import parse_scout
@@ -33,6 +38,7 @@ class TokenKora:
     def __init__(self, triggers: list[dict]) -> None:
         self.triggers = triggers
         self.tokens: tuple[tuple[str, tuple[str, ...], int], ...] = ()
+        self.token = "dev-access"
 
     def list_triggers(self) -> list[dict]:
         return self.triggers
@@ -60,7 +66,7 @@ def test_create_bridge_token_writes_env_atomically_and_prints_no_token(
     kora = TokenKora(
         [{"id": "t-0", "name": "Idea scout: run now"}, {"id": "t-9", "name": "Idea scout: scout"}]
     )
-    assert module.create(kora, env) == 0
+    assert module.create(kora, env, lambda: nullcontext(kora)) == 0
     assert kora.tokens == (
         ("ideas-bridge", ("trigger:t-9:fire", "triggers:read", "agents:runs:idea-scout:read"), 90),
     )
@@ -78,10 +84,69 @@ def test_create_bridge_token_needs_the_scout_trigger(tmp_path, capsys):
     env = tmp_path / ".env"
     env.write_text("A=1\n")
     kora = TokenKora([{"id": "t-0", "name": "Idea scout: run now"}])
-    assert module.create(kora, env) == 1
+    opened: tuple[str, ...] = ()
+
+    def identity():
+        nonlocal opened
+        opened = (*opened, "identity")
+        return nullcontext(kora)
+
+    assert module.create(kora, env, identity) == 1
     assert kora.tokens == ()
+    assert opened == ()
     assert env.read_text() == "A=1\n"
     assert "Idea scout: scout" in capsys.readouterr().err
+
+
+class ForwardProcess:
+    def __init__(self) -> None:
+        self.stdout = io.StringIO("Forwarding from 127.0.0.1:50999 -> 80\n")
+        self.args: list[str] = []
+        self.terminated = False
+
+    def poll(self):
+        return None
+
+    def terminate(self):
+        self.terminated = True
+
+    def wait(self, timeout=None):
+        return 0
+
+
+@respx.mock
+def test_create_bridge_token_mints_through_the_identity_forward(tmp_path, capsys):
+    module = script("create-bridge-token.py")
+    env = tmp_path / ".env"
+    env.write_text("A=1\n")
+    forward = ForwardProcess()
+
+    def popen(args, **_):
+        forward.args = args
+        return forward
+
+    route = respx.post("http://127.0.0.1:50999/api/v1/identity/tokens").mock(
+        return_value=httpx.Response(
+            201, json={"id": "p-1", "token": SECRET, "expires_at": "2027-01-23T10:00:00Z"}
+        )
+    )
+    kora = TokenKora([{"id": "t-9", "name": "Idea scout: scout"}])
+
+    def identity():
+        return module.identity_forward(kora.token, popen=popen)
+
+    assert module.create(kora, env, identity) == 0
+    assert route.called
+    request = route.calls.last.request
+    assert request.headers["Authorization"] == "Bearer dev-access"
+    assert json.loads(request.content)["scopes"][0] == "trigger:t-9:fire"
+    assert kora.tokens == ()
+    assert "svc/kora-identity" in forward.args
+    assert forward.terminated
+    assert f"KORA_BRIDGE_TOKEN={SECRET}" in env.read_text()
+    out = capsys.readouterr()
+    assert SECRET not in out.out + out.err
+    assert "about a minute" in out.out
 
 
 def test_ideas_allow_appends_to_the_allowlist(tmp_path, capsys):

@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from factory_demo.factory_cli import forward_port, policy_forward
+from factory_demo.factory_cli import forward_port, identity_forward, policy_forward
 
 
 class FakeForward:
@@ -39,6 +39,21 @@ def test_policy_forward_uses_the_port_kubectl_chose_on_loopback():
     assert "--address" in fake.args
     assert "127.0.0.1" in fake.args
     assert ":80" in fake.args
+    assert "svc/kora-policy-service" in fake.args
+    assert fake.terminated
+
+
+def test_identity_forward_reaches_the_identity_service():
+    fake = FakeForward("Forwarding from 127.0.0.1:50124 -> 80\n", None)
+
+    def popen(args, **_):
+        fake.args = args
+        return fake
+
+    with identity_forward("tok", popen=popen) as client:
+        assert client.base_url == "http://127.0.0.1:50124"
+    assert "svc/kora-identity" in fake.args
+    assert fake.args[1:3] == ["-n", "kora-system"]
     assert fake.terminated
 
 

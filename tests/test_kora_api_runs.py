@@ -84,12 +84,14 @@ def test_create_token_posts_scopes_and_days():
     }
 
 
-def test_client_from_token_passes_the_token_through(monkeypatch):
+def test_client_from_token_strips_the_kora_prefix(monkeypatch):
     monkeypatch.setattr(kora_api, "default_ca_file", lambda: True)
     monkeypatch.delenv("KORA_API_URL", raising=False)
-    kora = client_from_token("kora_abc")
-    assert kora.base_url == BASE
-    assert kora.http.headers["Authorization"] == "Bearer kora_abc"
+    prefixed = client_from_token("kora_eyJabc.def")
+    assert prefixed.base_url == BASE
+    assert prefixed.http.headers["Authorization"] == "Bearer eyJabc.def"
+    bare = client_from_token("eyJabc.def")
+    assert bare.http.headers["Authorization"] == "Bearer eyJabc.def"
 
 
 def test_client_from_token_takes_the_url(monkeypatch):

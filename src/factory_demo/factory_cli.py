@@ -17,6 +17,7 @@ from factory_demo.smoke_runner import wait_until_active
 
 LOOPBACK = "127.0.0.1"
 POLICY_SERVICE = "svc/kora-policy-service"
+IDENTITY_SERVICE = "svc/kora-identity"
 FORWARDING = re.compile(r"Forwarding from 127\.0\.0\.1:(\d+) ->")
 MAX_FORWARD_LINES = 5
 
@@ -60,9 +61,21 @@ def deploy_command(
     return 0
 
 
-@contextmanager
 def policy_forward(
     token: str, popen: Callable[..., Any] = subprocess.Popen
+) -> AbstractContextManager[KoraClient]:
+    return service_forward(POLICY_SERVICE, token, popen)
+
+
+def identity_forward(
+    token: str, popen: Callable[..., Any] = subprocess.Popen
+) -> AbstractContextManager[KoraClient]:
+    return service_forward(IDENTITY_SERVICE, token, popen)
+
+
+@contextmanager
+def service_forward(
+    service: str, token: str, popen: Callable[..., Any] = subprocess.Popen
 ) -> Iterator[KoraClient]:
     forward = popen(
         [
@@ -72,7 +85,7 @@ def policy_forward(
             "port-forward",
             "--address",
             LOOPBACK,
-            POLICY_SERVICE,
+            service,
             ":80",
         ],
         stdout=subprocess.PIPE,

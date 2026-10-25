@@ -14,6 +14,7 @@ TENANT_BUDGET_PATH = "/api/v1/policy/tenant-budget"
 AUTH_HINT = "kora token rejected: run 'make auth-refresh' in the kora checkout"
 EVENTS_PAGE = 200
 TOKENS_PATH = "/api/v1/identity/tokens"
+TOKEN_PREFIX = "kora_"
 
 
 class KoraAuthError(Exception):
@@ -224,4 +225,5 @@ def tls_context(ca: str | bool) -> ssl.SSLContext | bool:
 
 def client_from_token(token: str, base_url: str | None = None) -> KoraClient:
     url = base_url or os.environ.get("KORA_API_URL") or DEFAULT_API_URL
-    return KoraClient(url, token, verify=tls_context(default_ca_file()))
+    bare = token.removeprefix(TOKEN_PREFIX)
+    return KoraClient(url, bare, verify=tls_context(default_ca_file()))

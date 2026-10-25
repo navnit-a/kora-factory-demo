@@ -13,6 +13,7 @@ from factory_bridge.scout_result import parse_scout
 from factory_bridge.service import Bridge, State, scout_once
 from factory_bridge.telegram_api import Message
 from factory_demo.kora_api import KoraClient
+from factory_tools.trello.look import LABELS
 
 STARTED = 1_700_000_000
 NOW = 1_700_000_100.0
@@ -66,10 +67,15 @@ class FakeRunner:
 class FakeBoard:
     def __init__(self) -> None:
         self.cards: tuple[tuple[str, str], ...] = ()
+        self.labels: tuple[tuple[str, str], ...] = ()
 
     async def create(self, title: str, description: str) -> dict:
         self.cards = (*self.cards, (title, description))
         return {"id": "c-1", "url": "https://trello.com/c/abc12345", "list": "Ideas"}
+
+    async def label(self, card_id: str, name: str) -> dict:
+        self.labels = (*self.labels, (card_id, name))
+        return {"id": card_id, "label": name, "added": True}
 
 
 class Clock:
@@ -91,7 +97,7 @@ def make(allowlist, reply: str | Exception = None, batches: tuple = (), clock=No
     bot = FakeBot(batches)
     runner = FakeRunner(answer() if reply is None else reply)
     board = FakeBoard()
-    bridge = Bridge(bot, runner, board.create, allowlist, clock or Clock(), STARTED)
+    bridge = Bridge(bot, runner, board.create, board.label, allowlist, clock or Clock(), STARTED)
     return bridge, bot, runner, board
 
 
@@ -178,6 +184,31 @@ async def test_yes_creates_the_card_and_replies_with_the_link(allowlist):
     assert board.cards[0][1].endswith("Proposed by Anab via Telegram")
     assert bot.texts()[-1] == replies.added("https://trello.com/c/abc12345")
     assert state.pending == {}
+
+
+async def test_yes_labels_the_new_card_as_proposed_via_telegram(allowlist):
+    bridge, _, _, board = make(allowlist)
+    proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
+    await bridge.handle(proposed, message("yes"))
+    assert board.labels == (("c-1", "Proposed via Telegram"),)
+    assert "Proposed via Telegram" in LABELS
+
+
+async def test_a_failed_label_keeps_the_card_and_the_reply(allowlist, caplog):
+    async def refuse_label(card_id: str, name: str) -> dict:
+        raise ToolError("Trello returned HTTP 429")
+
+    bot, board = FakeBot(), FakeBoard()
+    bridge = Bridge(
+        bot, FakeRunner(answer()), board.create, refuse_label, allowlist, Clock(), STARTED
+    )
+    proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        state = await bridge.handle(proposed, message("yes"))
+    assert len(board.cards) == 1
+    assert bot.texts()[-1] == replies.added("https://trello.com/c/abc12345")
+    assert state.pending == {}
+    assert "card c-1" in caplog.text and "HTTP 429" in caplog.text
 
 
 async def test_no_drops_the_proposal(allowlist):
@@ -273,7 +304,10 @@ async def test_step_logs_a_failed_reply_and_moves_on(allowlist, caplog):
             raise ToolError("Telegram returned HTTP 400")
 
     bot = DeafBot(([update(30, "yes")],))
-    bridge = Bridge(bot, FakeRunner(answer()), FakeBoard().create, allowlist, Clock(), STARTED)
+    board = FakeBoard()
+    bridge = Bridge(
+        bot, FakeRunner(answer()), board.create, board.label, allowlist, Clock(), STARTED
+    )
     with caplog.at_level(logging.ERROR, logger="factory_bridge"):
         state = await bridge.step(State(0, {}, {}))
     assert state.offset == 31
@@ -282,14 +316,19 @@ async def test_step_logs_a_failed_reply_and_moves_on(allowlist, caplog):
 
 async def test_step_logs_an_unexpected_error_in_one_update_and_moves_on(allowlist, caplog):
     batch = [update(80, "yes"), update(81, f"/idea {IDEA}"), update(82, "hello")]
-    bot = FakeBot((batch,))
+    bot, board = FakeBot((batch,)), FakeBoard()
     bridge = Bridge(
-        bot, FakeRunner(KeyError("state")), FakeBoard().create, allowlist, Clock(), STARTED
+        bot, FakeRunner(KeyError("state")), board.create, board.label, allowlist, Clock(), STARTED
     )
     with caplog.at_level(logging.ERROR, logger="factory_bridge"):
         state = await bridge.step(State(0, {}, {}))
     assert state.offset == 83
-    assert bot.texts() == (replies.nothing_pending(), replies.ack(), replies.bad_text())
+    assert bot.texts() == (
+        replies.nothing_pending(),
+        replies.ack(),
+        replies.scout_failed(),
+        replies.bad_text(),
+    )
     assert "update 81" in caplog.text
     assert "Traceback" in caplog.text and "KeyError: 'state'" in caplog.text
 
@@ -354,7 +393,9 @@ class SilentBot(FakeBot):
 async def test_yes_whose_confirmation_fails_still_clears_the_proposal(allowlist, caplog):
     bot = SilentBot(fail_on="Added to Ideas")
     board = FakeBoard()
-    bridge = Bridge(bot, FakeRunner(answer()), board.create, allowlist, Clock(), STARTED)
+    bridge = Bridge(
+        bot, FakeRunner(answer()), board.create, board.label, allowlist, Clock(), STARTED
+    )
     proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
     with caplog.at_level(logging.ERROR, logger="factory_bridge"):
         state = await bridge.handle(proposed, message("yes"))
@@ -372,8 +413,10 @@ async def test_yes_with_a_failing_board_tells_the_proposer_and_keeps_the_proposa
     async def broken_board(title: str, description: str) -> dict:
         raise ToolError("Trello returned HTTP 500")
 
-    bot = FakeBot()
-    bridge = Bridge(bot, FakeRunner(answer()), broken_board, allowlist, Clock(), STARTED)
+    bot, board = FakeBot(), FakeBoard()
+    bridge = Bridge(
+        bot, FakeRunner(answer()), broken_board, board.label, allowlist, Clock(), STARTED
+    )
     proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
     with caplog.at_level(logging.ERROR, logger="factory_bridge"):
         state = await bridge.handle(proposed, message("yes"))
@@ -389,8 +432,8 @@ async def test_malformed_fire_reply_tells_the_user_and_keeps_the_service_alive(a
         return_value=httpx.Response(202, json={"queued": True})
     )
     runner = ScoutRunner(KoraClient(base, "tok"), "t-scout", sleep=lambda _: None)
-    bot = FakeBot(([update(50, f"/idea {IDEA}"), update(51, "hello")],))
-    bridge = Bridge(bot, runner, FakeBoard().create, allowlist, Clock(), STARTED)
+    bot, board = FakeBot(([update(50, f"/idea {IDEA}"), update(51, "hello")],)), FakeBoard()
+    bridge = Bridge(bot, runner, board.create, board.label, allowlist, Clock(), STARTED)
     state = await bridge.step(State(0, {}, {}))
     assert state.offset == 52
     assert bot.texts() == (replies.ack(), replies.scout_failed(), replies.bad_text())
@@ -400,11 +443,27 @@ async def test_malformed_fire_reply_tells_the_user_and_keeps_the_service_alive(a
 async def test_bad_allowlist_line_refuses_and_logs_without_crashing(allowlist, caplog):
     allowlist.write_text(f"{ALLOWED} Ana\nnot-an-id Bob\n")
     bot = FakeBot(([update(60, f"/idea {IDEA}"), update(61, "yes")],))
-    runner = FakeRunner(answer())
-    bridge = Bridge(bot, runner, FakeBoard().create, allowlist, Clock(), STARTED)
+    runner, board = FakeRunner(answer()), FakeBoard()
+    bridge = Bridge(bot, runner, board.create, board.label, allowlist, Clock(), STARTED)
     with caplog.at_level(logging.ERROR, logger="factory_bridge"):
         state = await bridge.step(State(0, {}, {}))
     assert state.offset == 62
     assert bot.texts() == (replies.refused(ALLOWED), replies.refused(ALLOWED))
     assert runner.calls == ()
     assert "line 2" in caplog.text
+
+
+async def test_unexpected_error_still_tells_the_sender(allowlist, caplog):
+    bot, board = FakeBot(([update(90, f"/idea {IDEA}")],)), FakeBoard()
+    runner = FakeRunner(KeyError("state"))
+    bridge = Bridge(bot, runner, board.create, board.label, allowlist, Clock(), STARTED)
+    state = await bridge.step(State(0, {}, {}))
+    assert state.offset == 91
+    assert bot.texts() == (replies.ack(), replies.scout_failed())
+    mute = SilentBot(([update(91, f"/idea {IDEA}")],), fail_on="The idea scout")
+    quiet = Bridge(mute, runner, board.create, board.label, allowlist, Clock(), STARTED)
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        after = await quiet.step(State(91, {}, {}))
+    assert after.offset == 92
+    assert mute.texts() == (replies.ack(),)
+    assert "HTTP 502" in caplog.text

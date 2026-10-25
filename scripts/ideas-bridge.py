@@ -49,7 +49,9 @@ async def serve() -> None:
             return await trello.create(IDEAS_LIST, title, description)
 
         bot = TelegramBot(env["TELEGRAM_BOT_TOKEN"], http)
-        bridge = Bridge(bot, runner, create_card, ALLOWLIST, time.time, int(time.time()))
+        bridge = Bridge(
+            bot, runner, create_card, trello.add_label, ALLOWLIST, time.time, int(time.time())
+        )
         logging.getLogger("factory_bridge").info("ideas bridge polling Telegram")
         await bridge.run_forever(State(0, {}, {}))
 

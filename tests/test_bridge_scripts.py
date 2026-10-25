@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import io
 import json
@@ -353,3 +354,27 @@ def test_session_stop_kills_only_the_bridge_when_it_shares_our_group(tmp_path):
     finally:
         if bridge.poll() is None:
             bridge.kill()
+
+
+def test_ideas_bridge_serve_labels_cards_through_trello(monkeypatch):
+    module = script("ideas-bridge.py")
+    for name in ("TELEGRAM_BOT_TOKEN", "TRELLO_API_KEY", "TRELLO_TOKEN", "TRELLO_BOARD_ID"):
+        monkeypatch.setenv(name, "x")
+    monkeypatch.setenv("KORA_BRIDGE_TOKEN", "kora_x")
+    monkeypatch.setenv("KORA_SCOUT_TRIGGER_ID", "t-9")
+    monkeypatch.setattr(module, "scout_runner", lambda token, trigger_id: object())
+    built: tuple = ()
+
+    class Captured:
+        def __init__(self, *args) -> None:
+            nonlocal built
+            built = args
+
+        async def run_forever(self, state) -> None:
+            return None
+
+    monkeypatch.setattr(module, "Bridge", Captured)
+    asyncio.run(module.serve())
+    label_card = built[3]
+    assert label_card.__name__ == "add_label"
+    assert isinstance(label_card.__self__, module.TrelloClient)

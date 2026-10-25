@@ -20,6 +20,7 @@ from factory_demo.kora_api import KoraAuthError
 
 log = logging.getLogger("factory_bridge")
 RETRY_S = 5.0
+PROPOSED_LABEL = "Proposed via Telegram"
 SCOUT_ERRORS = (TimeoutError, RuntimeError, ValueError, httpx.HTTPError, KoraAuthError)
 
 
@@ -35,6 +36,7 @@ class Bridge:
     bot: TelegramBot
     runner: ScoutRunner
     create_card: Callable[[str, str], Awaitable[dict]]
+    label_card: Callable[[str, str], Awaitable[dict]]
     allowlist_path: Path
     clock: Callable[[], float]
     started_at: int
@@ -91,7 +93,14 @@ class Bridge:
             return advanced
         except Exception:
             log.exception("update %s from user_id=%s broke", update["update_id"], message.user_id)
+            await self._tell_it_broke(message)
             return advanced
+
+    async def _tell_it_broke(self, message: Message) -> None:
+        try:
+            await self.bot.send(message.chat_id, replies.scout_failed())
+        except ToolError as error:
+            log.error("could not tell user_id=%s it broke: %s", message.user_id, error)
 
     async def _on_idea(self, state: State, message: Message, idea: str) -> State:
         now = self.clock()
@@ -135,6 +144,7 @@ class Bridge:
             log.error("card for user_id=%s not created: %s", message.user_id, error)
             await self._reply(message, replies.card_failed())
             return state
+        await self._label(card.get("id", ""), message.user_id)
         log.info("card %s created for user_id=%s", card.get("id", ""), message.user_id)
         cleared = replace(state, pending=rest)
         try:
@@ -142,6 +152,12 @@ class Bridge:
         except ToolError as error:
             log.error("card %s created but the reply failed: %s", card.get("id", ""), error)
         return cleared
+
+    async def _label(self, card_id: str, user_id: int) -> None:
+        try:
+            await self.label_card(card_id, PROPOSED_LABEL)
+        except ToolError as error:
+            log.error("card %s for user_id=%s not labelled: %s", card_id, user_id, error)
 
     def _allowed(self, user_id: int) -> bool:
         try:

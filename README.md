@@ -113,6 +113,11 @@ committed, pasted into a prompt, or shown on screen.
   ConfigMap" and a live `gh` call from an agent are the check that it works.
 - The reviewer and tester found the first three by moving the card to Blocked with the exact grant
   they were refused. The developer, refused `gh pr create`, switched to the REST endpoint itself.
+- Measured on 25 Oct, scheduled fires only, one card from Ready to Done unattended in 16 minutes
+  (Ready 11:30, In Progress 11:35, Review 11:37, Testing 11:43, Done 11:46, pull request merged):
+  developer 0.19 USD for the card and 0.035 for a tick that finds nothing; reviewer 0.11 and 0.034;
+  tester 0.01 and 0.002; product owner 0.005 a tick; delivery lead and scrum master 0.002; support
+  0.005. An hour of the whole team at recording cadence with nothing to do costs about 0.60 USD.
 
 ## Product repo
 

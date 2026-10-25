@@ -82,6 +82,85 @@ def test_list_ids_resolves_names_at_call_time():
     assert run(c.list_ids())["Ideas"] == "l-ideas-new"
 
 
+DISPLAY_LISTS = [
+    {"id": "l-ideas", "name": "💡 Ideas · product owner shapes"},
+    {"id": "l-backlog", "name": "📋 Backlog · delivery lead orders"},
+    {"id": "l-ready", "name": "🟡 Ready · next for the developer"},
+    {"id": "l-progress", "name": "🛠 In Progress · senior developer builds"},
+    {"id": "l-review", "name": "🔍 Review · code reviewer reads"},
+    {"id": "l-testing", "name": "🧪 Testing · tester proves"},
+    {"id": "l-done", "name": "✅ Done · shipped"},
+    {"id": "l-blocked", "name": "⛔ Blocked · needs a human"},
+]
+
+
+@respx.mock
+def test_list_ids_maps_display_names_to_canonical():
+    mock_lists([*DISPLAY_LISTS, {"id": "l-parking", "name": "Parking lot"}])
+    assert run(client().list_ids()) == {
+        "Ideas": "l-ideas",
+        "Backlog": "l-backlog",
+        "Ready": "l-ready",
+        "In Progress": "l-progress",
+        "Review": "l-review",
+        "Testing": "l-testing",
+        "Done": "l-done",
+        "Blocked": "l-blocked",
+    }
+
+
+@respx.mock
+def test_list_ids_keeps_the_first_list_matching_a_lane():
+    mock_lists([*DISPLAY_LISTS, {"id": "l-ideas-old", "name": "Ideas"}])
+    assert run(client().list_ids())["Ideas"] == "l-ideas"
+
+
+@respx.mock
+def test_display_named_board_reads_and_moves_by_canonical_name():
+    mock_lists(DISPLAY_LISTS)
+    respx.get(f"{API}/lists/l-progress/cards").mock(
+        return_value=httpx.Response(200, json=[{"id": "0123456789abcdef0123456a"}])
+    )
+    route = respx.put(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(200, json={"id": "x", "idBoard": "board"})
+    )
+    cards = run(client().cards_in("In Progress", 5))
+    moved = run(client().move("0123456789abcdef0123456a", "Review"))
+    assert [card["list"] for card in cards] == ["In Progress"]
+    assert moved == {"id": "0123456789abcdef0123456a", "list": "Review"}
+    assert form(route.calls[0].request) == {"idList": "l-review"}
+
+
+@respx.mock
+def test_card_on_a_display_named_board_reports_the_canonical_list():
+    mock_lists(DISPLAY_LISTS)
+    card_id = "0123456789abcdef0123456a"
+    respx.get(f"{API}/cards/{card_id}").mock(
+        return_value=httpx.Response(
+            200, json={"id": card_id, "idBoard": "board", "idList": "l-testing", "labels": []}
+        )
+    )
+    respx.get(f"{API}/cards/{card_id}/actions").mock(return_value=httpx.Response(200, json=[]))
+    respx.get(f"{API}/cards/{card_id}/checklists").mock(return_value=httpx.Response(200, json=[]))
+    assert run(client().card(card_id))["list"] == "Testing"
+
+
+@respx.mock
+def test_unknown_list_name_still_fails_loudly():
+    lists = [item for item in DISPLAY_LISTS if item["id"] != "l-review"]
+    mock_lists([*lists, {"id": "l-cr", "name": "Code review"}])
+    with pytest.raises(ToolError) as caught:
+        run(client().cards_in("Review", 10))
+    message = str(caught.value)
+    assert "No list named 'Review' on the board" in message
+    assert "Code review" in message
+    assert "🛠 In Progress · senior developer builds" in message
+    assert "The factory expects: Ideas, Backlog, Ready, In Progress, Review" in message
+
+
 @respx.mock
 def test_cards_in_unknown_list_names_the_lists():
     mock_lists([{"id": "l-ideas", "name": "Ideas"}])

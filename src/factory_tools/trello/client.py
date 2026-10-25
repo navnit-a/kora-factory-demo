@@ -6,7 +6,7 @@ import httpx
 from fastmcp.exceptions import ToolError
 
 from factory_tools.http import json_or_error, request, truncate
-from factory_tools.lists import lists_sentence
+from factory_tools.lists import canonical_name, lists_sentence
 from factory_tools.trello import card_view, checklist_client, look_client
 from factory_tools.trello.look import labels_on_create
 
@@ -54,11 +54,13 @@ class TrelloClient:
         )
 
     async def list_ids(self) -> dict[str, str]:
-        lists = await self._read(f"/boards/{self.board_id}/lists", {"fields": "name"})
-        return {item["name"]: item["id"] for item in lists}
+        return _canonical_ids(await self._board_lists())
+
+    async def _board_lists(self) -> list[dict]:
+        return await self._read(f"/boards/{self.board_id}/lists", {"fields": "name"})
 
     async def cards_in(self, list_name: str, limit: int) -> list[dict]:
-        list_id = _list_id(await self.list_ids(), list_name)
+        list_id = _list_id(await self._board_lists(), list_name)
         cards = await self._read(
             f"/lists/{list_id}/cards", {"fields": CARD_FIELDS, "limit": str(limit)}
         )
@@ -83,13 +85,13 @@ class TrelloClient:
 
     async def move(self, card_id: str, to_list: str) -> dict:
         await self._board_card(card_id, "idBoard")
-        list_id = _list_id(await self.list_ids(), to_list)
+        list_id = _list_id(await self._board_lists(), to_list)
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
         return {"id": card_id, "list": to_list}
 
     async def move_with_reason(self, card_id: str, to_list: str, reason: str) -> dict:
         await self._board_card(card_id, "idBoard")
-        list_id = _list_id(await self.list_ids(), to_list)
+        list_id = _list_id(await self._board_lists(), to_list)
         await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": reason})
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
         look = await self.apply_look(card_id, to_list, reason)
@@ -107,7 +109,7 @@ class TrelloClient:
         return {"id": card_id, "comment_id": body.get("id", "")}
 
     async def create(self, list_name: str, title: str, description: str) -> dict:
-        list_id = _list_id(await self.list_ids(), list_name)
+        list_id = _list_id(await self._board_lists(), list_name)
         body = await self._write(
             "POST", "/cards", {"idList": list_id, "name": title, "desc": description}
         )
@@ -165,9 +167,15 @@ class TrelloClient:
         return {"key": self.key, "token": self.token}
 
 
-def _list_id(ids: dict[str, str], list_name: str) -> str:
+def _canonical_ids(lists: list[dict]) -> dict[str, str]:
+    matched = [(canonical_name(item["name"]), item["id"]) for item in lists]
+    return dict(reversed([(name, list_id) for name, list_id in matched if name]))
+
+
+def _list_id(lists: list[dict], list_name: str) -> str:
+    ids = _canonical_ids(lists)
     if list_name not in ids:
-        board = ", ".join(sorted(ids)) or "no lists"
+        board = ", ".join(sorted(item["name"] for item in lists)) or "no lists"
         raise ToolError(
             f"No list named '{list_name}' on the board. The board has: {board}. "
             f"The factory expects: {lists_sentence().removeprefix('Lists are: ')}"

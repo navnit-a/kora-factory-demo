@@ -82,6 +82,12 @@ KNOWN_TOOLS = expected_tool_names() | {t for tools in PLATFORM_TOOLS.values() fo
 SLUGS = [spec.slug for spec in ROSTER]
 POSTING = [spec.slug for spec in ROSTER if "telegram_send_message" in spec.tools]
 MOVE_SIGNED = "the reason is posted as a comment signed by the agent that moves the card"
+WORD_CAP = 1700
+TESTER_WORD_CAP = 1780
+
+
+def word_cap(slug: str) -> int:
+    return TESTER_WORD_CAP if slug == "tester" else WORD_CAP
 
 
 def section(text: str, tag: str) -> str:
@@ -190,6 +196,15 @@ def test_tester_reads_ci_from_the_actions_run_on_the_pull_request_head():
     assert "`headSha` equal to the pull request's `headRefOid`" in text
 
 
+def test_tester_merges_only_data_files_from_agent_branches():
+    text = prompt("tester")
+    assert "agent-trains" in text and "agent-lunch" in text
+    assert "public/data/" in text
+    assert "gh pr view <number> --repo navnit-a/platformcon-day-planner --json files" in text
+    assert "merge_method=squash" in text
+    assert len(text.split()) <= TESTER_WORD_CAP
+
+
 @pytest.mark.parametrize("slug", PROMPTED)
 def test_no_prompt_reads_checks_that_need_the_statuses_permission(slug):
     text = prompt(slug)
@@ -229,7 +244,7 @@ def test_everyday_prompts_credit_their_data():
 
 
 def test_prompts_stay_short():
-    assert all(len(prompt(slug).split()) <= 1700 for slug in SLUGS)
+    assert all(len(prompt(slug).split()) <= word_cap(slug) for slug in SLUGS)
 
 
 def test_support_files_one_bug_and_never_fixes():

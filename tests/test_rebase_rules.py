@@ -33,7 +33,7 @@ def test_tester_sends_conflicting_prs_back_for_a_rebase():
     stuck = flat(section(text, "when_to_stop"))
     assert "merge conflict" not in stuck
     assert "A refused merge: move the card to Blocked" not in work
-    assert len(text.split()) <= 1699
+    assert len(text.split()) <= 1780
 
 
 def test_reviewer_sends_conflicting_prs_back_for_a_rebase():

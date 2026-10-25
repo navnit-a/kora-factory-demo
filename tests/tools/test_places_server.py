@@ -9,10 +9,11 @@ from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
 from factory_tools.places import server
-from factory_tools.places.server import ATTRIBUTION, OVERPASS_URL, rank_places
+from factory_tools.places.server import ATTRIBUTION, OVERPASS_URLS, rank_places
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "overpass_lunch.json").read_text())
 VENUE = (-33.8781, 151.2090)
+FIRST, SECOND = OVERPASS_URLS
 
 
 async def lunch(**arguments) -> dict:
@@ -58,7 +59,7 @@ def test_rank_skips_nodes_without_a_name():
 
 @respx.mock
 def test_tool_queries_overpass_around_the_point_and_attributes_osm():
-    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=FIXTURE))
+    route = respx.post(FIRST).mock(return_value=httpx.Response(200, json=FIXTURE))
     result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     assert [p["name"] for p in result["places"]] == ["Corner Cafe", "Harbour Noodle", "Spice Lane"]
     assert result["searched_radius_m"] == 600
@@ -71,14 +72,15 @@ def test_tool_queries_overpass_around_the_point_and_attributes_osm():
 
 @respx.mock
 def test_empty_result_says_nothing_within_radius():
-    respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json={"elements": []}))
+    respx.post(FIRST).mock(return_value=httpx.Response(200, json={"elements": []}))
     with pytest.raises(ToolError, match="no cafes or restaurants within 600 m"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
 
 
 @respx.mock
 def test_overpass_504_suggests_retry_or_smaller_radius():
-    respx.post(OVERPASS_URL).mock(return_value=httpx.Response(504, text="gateway timeout"))
+    respx.post(FIRST).mock(return_value=httpx.Response(504, text="gateway timeout"))
+    respx.post(SECOND).mock(return_value=httpx.Response(504, text="gateway timeout"))
     with pytest.raises(ToolError, match="retry in a minute or use a smaller radius"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
 
@@ -100,26 +102,24 @@ def test_tool_is_read_only():
 
 @respx.mock
 def test_overpass_runtime_error_remark_is_a_retry_hint_not_no_places():
-    respx.post(OVERPASS_URL).mock(
-        return_value=httpx.Response(
-            200,
-            json={"elements": [], "remark": "runtime error: Query timed out in 'query' at line 1"},
-        )
-    )
+    timed_out = {"elements": [], "remark": "runtime error: Query timed out in 'query' at line 1"}
+    respx.post(FIRST).mock(return_value=httpx.Response(200, json=timed_out))
+    respx.post(SECOND).mock(return_value=httpx.Response(200, json=timed_out))
     with pytest.raises(ToolError, match="retry in a minute or use a smaller radius"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
 
 
 @respx.mock
 def test_client_timeout_is_a_tool_error_with_the_hint():
-    respx.post(OVERPASS_URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    respx.post(FIRST).mock(side_effect=httpx.ReadTimeout("slow"))
+    respx.post(SECOND).mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(ToolError, match="Overpass did not answer in time"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
 
 
 @respx.mock
 def test_slow_overpass_gets_a_minute():
-    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=FIXTURE))
+    route = respx.post(FIRST).mock(return_value=httpx.Response(200, json=FIXTURE))
     run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     query = dict(httpx.QueryParams(route.calls[0].request.content.decode()))["data"]
     assert query.startswith("[out:json][timeout:50];")
@@ -129,7 +129,7 @@ def test_slow_overpass_gets_a_minute():
 
 @respx.mock
 def test_overpass_at_capacity_is_retried_then_answers():
-    route = respx.post(OVERPASS_URL).mock(
+    route = respx.post(FIRST).mock(
         side_effect=[
             httpx.Response(502, text="server is currently at capacity"),
             httpx.Response(200, json=FIXTURE),
@@ -143,9 +143,10 @@ def test_overpass_at_capacity_is_retried_then_answers():
 
 @respx.mock
 def test_last_good_answer_is_served_when_overpass_stays_down():
-    respx.post(OVERPASS_URL).mock(
+    respx.post(FIRST).mock(
         side_effect=[httpx.Response(200, json=FIXTURE), *[httpx.Response(502, text="busy")] * 3]
     )
+    respx.post(SECOND).mock(return_value=httpx.Response(502, text="busy"))
     fresh = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     cached = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     assert cached["places"] == fresh["places"]
@@ -155,17 +156,83 @@ def test_last_good_answer_is_served_when_overpass_stays_down():
 
 @respx.mock
 def test_without_a_cached_answer_overpass_down_is_a_retry_hint():
-    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(502, text="busy"))
+    first = respx.post(FIRST).mock(return_value=httpx.Response(502, text="busy"))
+    second = respx.post(SECOND).mock(return_value=httpx.Response(502, text="busy"))
     with pytest.raises(ToolError, match="retry in a minute"):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
-    assert route.call_count == 3
+    assert (first.call_count, second.call_count) == (3, 3)
 
 
 @respx.mock
 def test_a_cached_answer_is_only_for_the_same_point_and_radius():
-    respx.post(OVERPASS_URL).mock(
+    respx.post(FIRST).mock(
         side_effect=[httpx.Response(200, json=FIXTURE), *[httpx.Response(502, text="busy")] * 3]
     )
+    respx.post(SECOND).mock(return_value=httpx.Response(502, text="busy"))
     run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
     with pytest.raises(ToolError):
         run(lunch(latitude=VENUE[0], longitude=VENUE[1], radius_m=900))
+
+
+@respx.mock
+def test_second_instance_answers_when_the_first_is_at_capacity():
+    first = respx.post(FIRST).mock(
+        return_value=httpx.Response(502, text="server is currently at capacity")
+    )
+    second = respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert result["places"][0]["name"] == "Corner Cafe"
+    assert "cached_at" not in result
+    assert (first.call_count, second.call_count) == (3, 1)
+
+
+@respx.mock
+def test_second_instance_answers_when_the_first_times_out():
+    respx.post(FIRST).mock(side_effect=httpx.ReadTimeout("slow"))
+    second = respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert result["places"][0]["name"] == "Corner Cafe"
+    assert second.call_count == 1
+
+
+@respx.mock
+def test_second_instance_answers_when_the_first_rate_limits():
+    first = respx.post(FIRST).mock(return_value=httpx.Response(429, text="slow down"))
+    respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert result["places"][0]["name"] == "Corner Cafe"
+    assert first.call_count == 1
+
+
+@respx.mock
+def test_every_instance_failing_says_so_with_the_hint():
+    respx.post(FIRST).mock(return_value=httpx.Response(502, text="busy"))
+    respx.post(SECOND).mock(side_effect=httpx.ConnectError("refused"))
+    with pytest.raises(ToolError, match="Every Overpass instance failed") as raised:
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert "retry in a minute or use a smaller radius" in str(raised.value)
+
+
+@respx.mock
+def test_first_good_answer_wins_without_asking_the_second():
+    respx.post(FIRST).mock(return_value=httpx.Response(200, json=FIXTURE))
+    second = respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert second.call_count == 0
+
+
+@respx.mock
+def test_a_bad_request_is_not_retried_on_the_second_instance():
+    respx.post(FIRST).mock(return_value=httpx.Response(400, text="parse error"))
+    second = respx.post(SECOND).mock(return_value=httpx.Response(200, json=FIXTURE))
+    with pytest.raises(ToolError, match="HTTP 400"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert second.call_count == 0
+
+
+@respx.mock
+def test_every_request_fits_inside_the_overall_budget(monkeypatch):
+    monkeypatch.setattr(server, "TOTAL_BUDGET_S", 30.0)
+    route = respx.post(FIRST).mock(return_value=httpx.Response(200, json=FIXTURE))
+    run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert route.calls[0].request.extensions["timeout"]["read"] <= 30.0

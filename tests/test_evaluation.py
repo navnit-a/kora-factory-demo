@@ -14,7 +14,7 @@ def outcome(**changes) -> Outcome:
         cost_usd=0.05,
         new_cards=(),
         extra_lists={},
-        labels=("Story",),
+        labels=("Story", "📋 Delivery lead"),
         checklist=CRITERIA,
     )
     return Outcome(**{**base.__dict__, **changes})
@@ -39,6 +39,12 @@ def test_every_fixture_card_is_marked():
             assert is_fixture(fixture.title), fixture.slug
         for title, _, _ in fixture.extra_cards:
             assert is_fixture(title), fixture.slug
+
+
+def test_fixtures_expect_the_actor_label_of_the_lane_their_card_ends_in():
+    assert FIXTURES["product-owner"].expect_labels == ("Story", "📋 Delivery lead")
+    assert FIXTURES["scrum-master"].expect_list == "Blocked"
+    assert FIXTURES["scrum-master"].expect_labels == ("🙋 Needs a human",)
 
 
 def test_judge_passes_a_product_owner_story():
@@ -152,7 +158,11 @@ def test_agent_ops_fixture_needs_its_comment_and_post():
 def test_judge_checks_labels_cover_and_checklist():
     owner = FIXTURES["product-owner"]
     bare = judge(owner, outcome(labels=(), checklist=CRITERIA[:2]), 0.20)
-    assert bare.reasons == ("missing label 'Story'", "checklist has 2 items, expected at least 3")
+    assert bare.reasons == (
+        "missing label 'Story'",
+        "missing label '📋 Delivery lead'",
+        "checklist has 2 items, expected at least 3",
+    )
     tester = FIXTURES["tester"]
     shipped = {"card_list": "Done", "comments": ("Shipped",), "posts": ("Shipped: x",)}
     assert judge(tester, outcome(**shipped, **SHIPPED_LOOK), 0.20).passed

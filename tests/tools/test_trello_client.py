@@ -678,6 +678,18 @@ def test_done_removes_actor_labels():
 
 
 @respx.mock
+def test_a_pull_into_in_progress_is_signed_by_the_developer():
+    mock_lists(DISPLAY_LISTS)
+    mock_look(CARD, list_id="l-ready")
+    comment = comment_route()
+    run(client().move_with_reason(CARD, "In Progress", "Starting: the header count"))
+    assert form(comment.calls[0].request) == {
+        "text": "🤖 Senior developer → 🛠 In Progress · senior developer builds: "
+        "Starting: the header count"
+    }
+
+
+@respx.mock
 def test_move_from_a_list_outside_the_lanes_posts_the_reason_unsigned():
     mock_lists([*LISTS, {"id": "l-parking", "name": "Parking lot"}])
     mock_look(CARD, list_id="l-parking")

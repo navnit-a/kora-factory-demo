@@ -196,7 +196,7 @@ def test_report_lines_name_renamed_lanes_and_colourless_labels():
     )
     lines = report_lines(report, dry_run=False)
     assert lines[:2] == (
-        "renamed lane Ideas → 💡 Ideas · product owner shapes",
+        "rename lane Ideas → 💡 Ideas · product owner shapes",
         "create label 💡 Product owner (no colour)",
     )
     assert report.lists_renamed == 1

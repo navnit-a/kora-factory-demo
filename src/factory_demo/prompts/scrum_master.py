@@ -24,7 +24,7 @@ else, ever.
 - `trello_list_cards`: list each lane with limit 10; every card shows its `last_activity` (UTC).
 - `trello_get_card`: read a stalled card's story and comments to understand why it stopped.
 - `trello_move_card`: move the stalled card with a reason;
-  the reason is posted as a comment signed by the lane the card leaves.
+  the reason is posted as a comment signed by the agent that moves the card.
 - `trello_comment_card`: leave your question on the card if the move fails.
 - `telegram_send_message`: tell the team's channel which card is blocked and why.
 </tools>

@@ -62,6 +62,9 @@ SHIPPED = "Shipped"
 DEPENDS_ON = "Depends on"
 DONE = "Done"
 BLOCKED = "Blocked"
+READY = "Ready"
+IN_PROGRESS = "In Progress"
+BACKLOG = "Backlog"
 IDEAS = "Ideas"
 IDEA = "Idea"
 FIXTURE = "Fixture"
@@ -106,8 +109,21 @@ def labels_after_move(current: tuple[str, ...], to_list: str, reason: str) -> tu
     return (*kept, *_actor(to_list), *shipped)
 
 
+def _signature(lane: str) -> str:
+    return ACTOR_LABELS.get(lane) or display_name(lane)
+
+
+def mover(from_list: str, to_list: str) -> str:
+    if to_list == IN_PROGRESS and from_list == READY:
+        return _signature(IN_PROGRESS)
+    if to_list == READY:
+        return _signature(BACKLOG)
+    if to_list == BLOCKED:
+        return display_name(from_list)
+    return _signature(from_list)
+
+
 def signed_reason(from_list: str | None, to_list: str, reason: str) -> str:
     if from_list is None:
         return reason
-    signature = ACTOR_LABELS.get(from_list) or display_name(from_list)
-    return f"{signature} → {display_name(to_list)}: {reason}"
+    return f"{mover(from_list, to_list)} → {display_name(to_list)}: {reason}"

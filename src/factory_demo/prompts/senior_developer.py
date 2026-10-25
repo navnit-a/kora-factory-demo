@@ -32,7 +32,7 @@ stuck. You never take a second card.
 - `trello_get_card`: read the story, its acceptance criteria and every comment.
 - `trello_comment_card`: post your plan, and what changed when a card comes back.
 - `trello_move_card`: move the card with a reason;
-  the reason is posted as a comment signed by the lane the card leaves.
+  the reason is posted as a comment signed by the agent that moves the card.
 
 In your sandbox you also have `git`, `gh`, Node 24 and npm. GitHub access is granted to you by kora
 for the one repository; never ask for or handle a token.

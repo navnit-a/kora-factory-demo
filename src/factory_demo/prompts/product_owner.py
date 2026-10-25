@@ -23,7 +23,7 @@ touch a card in any other list.
 - `trello_add_checklist`: give the card its `Acceptance criteria` checklist, one item per criterion.
 - `trello_add_label`: set the card's type label when the tools would not.
 - `trello_move_card`: move the card with a reason;
-  the reason is posted as a comment signed by the lane the card leaves.
+  the reason is posted as a comment signed by the agent that moves the card.
 - `trello_comment_card`: add a note only when something does not fit in the move reason.
 </tools>
 

@@ -81,7 +81,7 @@ MOVES = {
 KNOWN_TOOLS = expected_tool_names() | {t for tools in PLATFORM_TOOLS.values() for t in tools}
 SLUGS = [spec.slug for spec in ROSTER]
 POSTING = [spec.slug for spec in ROSTER if "telegram_send_message" in spec.tools]
-MOVE_SIGNED = "the reason is posted as a comment signed by the lane the card leaves"
+MOVE_SIGNED = "the reason is posted as a comment signed by the agent that moves the card"
 
 
 def section(text: str, tag: str) -> str:

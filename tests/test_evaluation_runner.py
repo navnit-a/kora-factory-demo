@@ -111,7 +111,7 @@ def write_story(trello: FakeTrello, checklist: tuple[tuple[str, str], ...]) -> N
     story = {
         "list": "Backlog",
         "description": "Given x When y Then z",
-        "labels": ("Story",),
+        "labels": ("Story", "📋 Delivery lead"),
         "checklist": checklist,
     }
     trello.cards = {**trello.cards, card_id: {**card, **story}}
@@ -141,7 +141,7 @@ async def test_runner_reads_labels_cover_and_checklist():
     trello = FakeTrello()
     kora = RunningKora(trello, lambda board: write_story(board, CRITERIA[:2]))
     result = await evaluate("product-owner", kora, trello, no_posts, start=START)
-    assert result.outcome.labels == ("Story",)
+    assert result.outcome.labels == ("Story", "📋 Delivery lead")
     assert result.outcome.cover is None
     assert result.outcome.checklist == CRITERIA[:2]
     assert result.verdict.reasons == ("checklist has 2 items, expected at least 3",)
@@ -236,7 +236,8 @@ async def test_evaluate_archives_the_bug_the_support_agent_filed():
 
 def scrum_master_blocks(trello: FakeTrello) -> None:
     card_id = next(cid for cid, c in trello.cards.items() if c["list"] == "In Progress")
-    trello.cards = {**trello.cards, card_id: {**trello.cards[card_id], "list": "Blocked"}}
+    blocked = {"list": "Blocked", "labels": ("🙋 Needs a human",)}
+    trello.cards = {**trello.cards, card_id: {**trello.cards[card_id], **blocked}}
     trello._comment(card_id, "Idle 120 min.", "2026-10-25T09:01:00Z")
 
 

@@ -1,6 +1,8 @@
 from itertools import product
 from typing import get_args
 
+import pytest
+
 from factory_tools.lists import BOARD_LISTS, display_name
 from factory_tools.trello.look import (
     ACTOR_LABEL_NAMES,
@@ -16,6 +18,7 @@ from factory_tools.trello.look import (
     LaneLook,
     labels_after_move,
     labels_on_create,
+    mover,
     signed_reason,
     type_label,
 )
@@ -148,7 +151,7 @@ def test_create_carries_the_lanes_actor_label():
     assert labels_on_create("Ship it", "Done") == ("Story",)
 
 
-def test_signed_reason_names_leaving_actor_and_destination():
+def test_signed_reason_formats_mover_destination_and_reason():
     assert signed_reason("In Progress", "Review", "PR https://github.com/x/y/pull/4") == (
         "🤖 Senior developer → 🔍 Review · code reviewer reads: PR https://github.com/x/y/pull/4"
     )
@@ -159,9 +162,38 @@ def test_signed_reason_names_leaving_actor_and_destination():
         "✅ Done · shipped → 🛠 In Progress · senior developer builds: Regression found"
     )
     assert signed_reason("Blocked", "Ready", "Unblocked: the API is back") == (
-        "🙋 Needs a human → 🟡 Ready · next for the developer: Unblocked: the API is back"
+        "📋 Delivery lead → 🟡 Ready · next for the developer: Unblocked: the API is back"
+    )
+    assert signed_reason("Ready", "In Progress", "Starting: the header count") == (
+        "🤖 Senior developer → 🛠 In Progress · senior developer builds: Starting: the header count"
     )
     assert signed_reason(None, "Backlog", "Filed by support") == "Filed by support"
+
+
+@pytest.mark.parametrize(
+    ("from_list", "to_list", "expected"),
+    [
+        ("Ready", "In Progress", "🤖 Senior developer"),
+        ("Backlog", "Ready", "📋 Delivery lead"),
+        ("Blocked", "Ready", "📋 Delivery lead"),
+        ("Ideas", "Ready", "📋 Delivery lead"),
+        ("In Progress", "Review", "🤖 Senior developer"),
+        ("Review", "Testing", "🔍 Code reviewer"),
+        ("Testing", "Done", "🧪 Tester"),
+        ("Review", "In Progress", "🔍 Code reviewer"),
+        ("Testing", "In Progress", "🧪 Tester"),
+        ("Ideas", "Backlog", "💡 Product owner"),
+        ("In Progress", "Blocked", "🛠 In Progress · senior developer builds"),
+        ("Review", "Blocked", "🔍 Review · code reviewer reads"),
+        ("Done", "In Progress", "✅ Done · shipped"),
+        ("Done", "Backlog", "✅ Done · shipped"),
+    ],
+)
+def test_signed_reason_names_the_true_mover(from_list, to_list, expected):
+    assert mover(from_list, to_list) == expected
+    assert signed_reason(from_list, to_list, "why") == (
+        f"{expected} → {display_name(to_list)}: why"
+    )
 
 
 def test_signed_move_comment_keeps_bookkeeping_prefixes_recognisable():

@@ -8,7 +8,7 @@ from pydantic import Field
 
 from factory_tools.lists import BOARD_LISTS, ListName
 from factory_tools.trello.client import TrelloClient
-from factory_tools.trello.look import CHECKLIST_NAME, LABELS, LabelName
+from factory_tools.trello.look import ACTOR_LABEL_NAMES, CHECKLIST_NAME, LABELS, LabelName
 
 TRELLO_TEXT_LIMIT = 16384
 READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=True)
@@ -16,7 +16,13 @@ WRITE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
 )
 LIST_DESCRIPTION = "One of the board's lists: " + ", ".join(BOARD_LISTS) + "."
-LABEL_DESCRIPTION = "One label of the board language: " + ", ".join(LABELS) + "."
+LABEL_DESCRIPTION = (
+    "One label of the board language: "
+    + ", ".join(name for name in LABELS if name not in ACTOR_LABEL_NAMES)
+    + ". The actor labels ("
+    + ", ".join(name for name in LABELS if name in ACTOR_LABEL_NAMES)
+    + ") are set by moves; never add one by hand."
+)
 Criterion = Annotated[str, Field(min_length=3, max_length=200)]
 CardId = Annotated[
     str, Field(description="The Trello card id from trello_list_cards or trello_get_card.")
@@ -68,8 +74,8 @@ async def trello_get_card(card_id: CardId) -> dict:
 @mcp.tool(
     annotations=WRITE,
     description="Move a card to another list. The target list is checked first, then the reason "
-    "is posted as a comment signed by the lane the card leaves (its actor, then the destination "
-    "lane), then the card moves and its actor label is set to the destination lane's.",
+    "is posted as a comment signed by the agent that moves the card (the mover, then the "
+    "destination lane), then the card moves and its actor label is set to the destination lane's.",
 )
 async def trello_move_card(
     card_id: CardId,

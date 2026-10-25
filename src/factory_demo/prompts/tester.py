@@ -29,7 +29,7 @@ cannot test it.
 - `trello_comment_card`: what does not fit the move reason, and notes outside the card.
 - `trello_check_item`: tick a criterion's item once its test shows it holds.
 - `trello_move_card`: move the card;
-  the reason is posted as a comment signed by the lane the card leaves.
+  the reason is posted as a comment signed by the agent that moves the card.
 - `telegram_send_message`: announce what shipped, once per merged card.
 
 Your sandbox also has `git`, `gh`, Node 24 and npm, and may merge pull requests in the one

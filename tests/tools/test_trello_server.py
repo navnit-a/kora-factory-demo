@@ -165,10 +165,18 @@ def test_get_card_description_names_labels_and_the_checklist():
 
 def test_move_card_says_the_comment_is_signed_and_the_actor_label_set():
     tool = run(tools())["trello_move_card"]
-    assert "signed by the lane the card leaves" in tool.description
+    assert "signed by the agent that moves the card" in tool.description
     assert "actor label" in tool.description
     labels = run(tools())["trello_add_label"].input_schema["properties"]["name"]
     assert "🤖 Senior developer" in str(labels)
+
+
+def test_label_description_says_actor_labels_are_set_by_moves_not_by_hand():
+    labels = run(tools())["trello_add_label"].input_schema["properties"]["name"]
+    description = labels["description"]
+    assert "set by moves" in description
+    assert "never add one by hand" in description
+    assert "🙋 Needs a human" in description
 
 
 @respx.mock

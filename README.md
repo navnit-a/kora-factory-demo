@@ -128,9 +128,13 @@ The Trello tool server dresses a card on every move and create, so the board rea
 | Blocked | ⛔ Blocked · needs a human | 🙋 Needs a human | red | warning |
 
 Every move puts the destination lane's actor label on the card and takes the previous one off, so
-the card always says who has it. The move comment is signed by the lane the card left, for example
-`🤖 Senior developer → 🔍 Review · code reviewer reads: <reason>`. kora never tells a tenant tool
-server which agent is calling, by design, so the actor comes from the lanes. Every agent signs its
+the card always says who has it. The move comment is signed by the agent that moves the card,
+usually the actor of the lane it left, for example
+`🤖 Senior developer → 🔍 Review · code reviewer reads: <reason>`. Pulls are signed by the agent that
+pulls: `🤖 Senior developer → 🛠 In Progress · senior developer builds: Starting: <reason>` for a card
+taken from Ready, 📋 Delivery lead for any card put into Ready, and a move into Blocked names the
+lane it left. kora never tells a tenant tool server which agent is calling, by design, so the actor
+comes from the move. Every agent signs its
 Telegram posts with its icon and name: 💡 Product owner, 📋 Delivery lead, ⏱ Scrum master,
 🤖 Senior developer, 🔍 Code reviewer, 🧪 Tester, 🛟 Support, 🚆 Sydney trains, 🍜 Lunch and
 🛰 Agent ops; the idea scout's write-up goes back through the bridge unsigned.

@@ -161,7 +161,7 @@ def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
 
 
 def report_lines(report: DressReport, dry_run: bool) -> tuple[str, ...]:
-    lanes = tuple(f"renamed lane {old} → {new}" for old, new in report.renamed_lanes)
+    lanes = tuple(f"{RENAME} lane {old} → {new}" for old, new in report.renamed_lanes)
     actions = tuple(
         f"{action} label {name} ({colour or NO_COLOUR})" for action, name, colour in report.labels
     )

@@ -1,7 +1,7 @@
 from factory_demo.kora_api import KoraAuthError
 
 MODELS = [{"id": "anthropic/claude-haiku-5-5"}, {"id": "anthropic/claude-sonnet-5-5"}]
-ENVIRONMENTS = ({"id": "env-1", "slug": "node-web"},)
+ENVIRONMENTS = ({"id": "env-1", "slug": "node-web"}, {"id": "env-2", "slug": "python-tools"})
 
 
 class FakeKora:

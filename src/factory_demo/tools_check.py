@@ -12,6 +12,9 @@ TOOLS_BY_SERVER = {
     "transport": ("transport_sydney_trains_status",),
     "places": ("places_lunch_nearby",),
 }
+PLATFORM_TOOLS = {
+    "kora": ("runs.list", "runs.get", "runs.events", "triggers.get", "triggers.deliveries.list"),
+}
 
 
 def expected_tool_names() -> set[str]:

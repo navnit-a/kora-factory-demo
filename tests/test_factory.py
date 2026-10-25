@@ -85,10 +85,10 @@ def test_deploy_refuses_when_an_agents_environment_is_missing():
 def test_github_agents_are_skipped_until_asked():
     kora = FakeKora()
     report = deploy_factory(kora, "quiet", include_github=False)
-    assert len(report.skipped) == 4
+    assert len(report.skipped) == 6
     assert all("--with-github" in line for line in report.skipped)
     deploy_factory(kora, "quiet", include_github=True)
-    assert {"senior-developer", "code-reviewer", "tester", "support"} <= {
+    assert {"senior-developer", "code-reviewer", "tester", "support", "agent-ops"} <= {
         a["slug"] for a in kora.agents
     }
 

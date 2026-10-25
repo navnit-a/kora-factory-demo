@@ -2,7 +2,6 @@ from typing import Literal
 
 from factory_demo.roster import (
     GITHUB_CONNECTION,
-    GITHUB_RESOURCE,
     RUNS_PER_POD,
     SYDNEY,
     AgentSpec,
@@ -10,7 +9,7 @@ from factory_demo.roster import (
     Schedule,
     prompt,
 )
-from factory_demo.tools_check import TOOLS_BY_SERVER
+from factory_demo.tools_check import PLATFORM_TOOLS, TOOLS_BY_SERVER
 
 Cadence = Literal["recording", "quiet"]
 IMMUTABLE_AGENT_FIELDS = frozenset({"slug", "identity_mode", "framework"})
@@ -21,11 +20,16 @@ MUTABLE_TRIGGER_FIELDS = (
     "max_parallel",
     "dedupe_enabled",
 )
-SERVER_OF = {tool: server for server, tools in TOOLS_BY_SERVER.items() for tool in tools}
+SERVER_OF = {
+    tool: server
+    for servers in (TOOLS_BY_SERVER, PLATFORM_TOOLS)
+    for server, tools in servers.items()
+    for tool in tools
+}
 
 
 def tool_scopes(spec: AgentSpec) -> list[str]:
-    return [f"mcp:{SERVER_OF[tool]}:{tool}:use" for tool in spec.tools]
+    return [f"mcp:{SERVER_OF[tool]}:{tool.replace('.', ':')}:use" for tool in spec.tools]
 
 
 def agent_request(spec: AgentSpec, model_id: str, environment_id: str | None) -> dict:
@@ -38,6 +42,7 @@ def agent_request(spec: AgentSpec, model_id: str, environment_id: str | None) ->
         "identity_mode": "autonomous",
         "model_id": model_id,
         "mcp_tools": tool_scopes(spec),
+        "grant_scopes": list(spec.grant_scopes),
         "connectors": _connectors(spec),
         "environments": _environments(environment_id),
         "max_concurrent_runs_per_pod": RUNS_PER_POD,
@@ -100,7 +105,7 @@ def _connectors(spec: AgentSpec) -> list[dict]:
         {
             "connection": GITHUB_CONNECTION,
             "actions": list(spec.github_actions),
-            "resources": [GITHUB_RESOURCE],
+            "resources": list(spec.github_resources),
         }
     ]
 

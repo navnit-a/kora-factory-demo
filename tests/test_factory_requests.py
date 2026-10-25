@@ -141,3 +141,20 @@ def test_support_gets_read_only_github():
         }
     ]
     assert "mcp:trello:trello_create_card:use" in request["mcp_tools"]
+
+
+def test_tool_scopes_turn_dots_into_colons():
+    scopes = tool_scopes(by_slug("agent-ops"))
+    assert "mcp:kora:runs:events:use" in scopes
+    assert "mcp:kora:triggers:deliveries:list:use" in scopes
+    assert "mcp:trello:trello_comment_card:use" in scopes
+
+
+def test_agent_request_carries_grant_scopes_and_resources():
+    ops = agent_request(by_slug("agent-ops"), "anthropic/claude-sonnet-5-5", "e-2")
+    assert ops["grant_scopes"] == list(by_slug("agent-ops").grant_scopes)
+    assert "agents:runs:idea-scout:read" in ops["grant_scopes"]
+    assert [c["resources"] for c in ops["connectors"]] == [["kora-factory-demo"]]
+    developer = agent_request(by_slug("senior-developer"), "anthropic/claude-sonnet-5-5", "e-1")
+    assert developer["grant_scopes"] == []
+    assert [c["resources"] for c in developer["connectors"]] == [["platformcon-day-planner"]]

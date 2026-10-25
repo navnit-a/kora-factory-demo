@@ -1,5 +1,5 @@
 from factory_demo.catalog import DEMO_MODELS
-from factory_demo.environments import NODE_WEB
+from factory_demo.environments import ENVIRONMENTS
 from factory_demo.kora_api import KoraClient
 from factory_demo.registration import unpriced_models
 
@@ -16,7 +16,7 @@ def api_checks(client: KoraClient) -> list[tuple[bool, str]]:
     unpriced = unpriced_models(client.list_pricing())
     prices = [(not unpriced, "every demo model has a price")]
     slugs = {e.get("slug") for e in client.list_environments()}
-    environment = [(NODE_WEB.slug in slugs, f"environment {NODE_WEB.slug} present")]
+    environment = [(e.slug in slugs, f"environment {e.slug} present") for e in ENVIRONMENTS]
     calls = [
         (probe_claude(client, CLAUDE_PROBE)[0], f"{CLAUDE_PROBE} answers through the gateway"),
         (probe_openai(client, OPENAI_PROBE)[0], f"{OPENAI_PROBE} answers through the gateway"),

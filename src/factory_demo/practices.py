@@ -138,12 +138,20 @@ RULES_BY_ROLE: dict[str, tuple[int, ...]] = {
     "code-reviewer": (*TEAM_BASE, 16, 17, 18, 19, *DESIGN_RULES),
     "tester": (*TEAM_BASE, 20, 21, 22, *DESIGN_RULES),
     "support": (*TEAM_BASE, 22),
+    "idea-scout": (*TEAM_BASE, 5, 6, 7),
+    "agent-ops": (*TEAM_BASE, 16, 17, 18, 19),
 }
 REPO_PATH = "repos/navnit-a/platformcon-day-planner"
 FOUND_OUTSIDE = "Found outside this card:"
 FILED_AS = "Filed as"
 BUG_PREFIX = "Bug:"
 HIGH_SEVERITY = "Severity: high"
+SCOUT_TAGS = ("title", "story", "criteria", "verdict", "dependencies", "reason")
+VERDICTS = ("buildable", "needs_dependency", "not_buildable")
+AGENT_OPS_PREFIX = "Agent ops:"
+OPS_BRANCH_PREFIX = "agent-ops/"
+OPS_REPO_PATH = "repos/navnit-a/kora-factory-demo"
+OPS_REPO = "kora-factory-demo"
 NOTE_OUTSIDE = (
     "Something wrong that is not part of this card: comment on your card starting "
     f"`{FOUND_OUTSIDE}` with what is wrong, where, and how to see it, then carry on. "
@@ -175,7 +183,9 @@ PRODUCT_WORKFLOW = (
 
 DESIGN_DIRECTION = (
     "Design direction. Calm, spacious and friendly, read at a glance in a busy foyer,"
-    " phone first (393 px). Colours are the Harbour CSS variables in `src/index.css`;"
+    " phone first (393 px). The default theme is light: the product is filmed on a light"
+    " screen; a dark switch may exist but never as the default. Colours are the Harbour"
+    " CSS variables in `src/index.css`;"
     " use only those: `--paper` page, `--surface` cards with a 1px `--hairline` "
     "border and no shadow, `--ink` headings and primary buttons, `--accent` teal for "
     "links, selection and the 2px focus ring, `--now` amber only for what is "

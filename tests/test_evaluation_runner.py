@@ -1,0 +1,192 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from factory_demo.evaluation import FIXTURES
+from factory_demo.evaluation_runner import evaluate, run_inputs
+from tests.fake_kora import FakeKora
+
+START = datetime(2026, 10, 25, 9, 0, tzinfo=UTC)
+
+
+class FakeTrello:
+    def __init__(self, cards: dict[str, dict] | None = None):
+        self.cards = dict(cards or {})
+        self.archived: tuple[str, ...] = ()
+        self.on_run = None
+
+    async def cards_in(self, list_name, limit):
+        return [
+            {"id": cid, "title": c["title"], "list": c["list"]}
+            for cid, c in self.cards.items()
+            if c["list"] == list_name
+        ][:limit]
+
+    async def create(self, list_name, title, description):
+        card_id = f"{len(self.cards):024x}"
+        self.cards = {
+            **self.cards,
+            card_id: {
+                "title": title,
+                "list": list_name,
+                "description": description,
+                "comments": (),
+            },
+        }
+        return {"id": card_id, "url": f"https://trello.com/c/{card_id}", "list": list_name}
+
+    async def comment(self, card_id, text):
+        return self._comment(card_id, text, "2026-10-25T08:59:00Z")
+
+    def _comment(self, card_id, text, when):
+        card = self.cards[card_id]
+        self.cards = {
+            **self.cards,
+            card_id: {**card, "comments": ({"when": when, "text": text}, *card["comments"])},
+        }
+        return {"id": card_id}
+
+    async def card(self, card_id):
+        card = self.cards[card_id]
+        return {
+            "id": card_id,
+            "title": card["title"],
+            "list": card["list"],
+            "url": "",
+            "description": card["description"],
+            "comments": list(card["comments"]),
+        }
+
+    async def archive(self, card_id):
+        self.archived = (*self.archived, card_id)
+
+
+class RunningKora(FakeKora):
+    def __init__(self, trello: FakeTrello, act):
+        super().__init__()
+        self.trello = trello
+        self.act = act
+        self.fired: tuple[tuple[str, dict], ...] = ()
+        self.triggers = (
+            {"id": "t-po", "name": "Product owner: run now", "kind": "manual"},
+            {"id": "t-sm", "name": "Scrum master: run now", "kind": "manual"},
+        )
+
+    def fire_trigger(self, trigger_id, variables):
+        self.fired = (*self.fired, (trigger_id, variables))
+        self.act(self.trello)
+        return "d-1"
+
+    def list_deliveries(self, trigger_id, limit=10):
+        return [{"id": "d-1", "run_id": "r-1"}]
+
+    def wait_for_run(self, run_id, timeout_s=600, poll_s=5.0):
+        return {"id": run_id, "state": "idle"}
+
+    def run_usage(self, run_id):
+        return {"spend_usd": 0.04}
+
+
+def product_owner_works(trello: FakeTrello) -> None:
+    card_id = next(cid for cid, c in trello.cards.items() if c["list"] == "Ideas")
+    card = trello.cards[card_id]
+    trello.cards = {
+        **trello.cards,
+        card_id: {**card, "list": "Backlog", "description": "Given x When y Then z"},
+    }
+    trello._comment(card_id, "Story ready.", "2026-10-25T09:01:00Z")
+
+
+async def no_posts() -> str:
+    return "<html></html>"
+
+
+async def test_evaluate_passes_a_working_product_owner():
+    trello = FakeTrello()
+    kora = RunningKora(trello, product_owner_works)
+    result = await evaluate("product-owner", kora, trello, no_posts, start=START)
+    assert result.verdict.passed, result.verdict.reasons
+    assert result.outcome.cost_usd == 0.04
+    assert kora.fired == (("t-po", {}),)
+    assert len(trello.archived) == 1
+
+
+async def test_evaluate_keeps_the_card_when_asked():
+    trello = FakeTrello()
+    kora = RunningKora(trello, product_owner_works)
+    result = await evaluate("product-owner", kora, trello, no_posts, start=START, keep=True)
+    assert trello.archived == ()
+    assert result.card_id
+
+
+async def test_evaluate_refuses_a_busy_lane():
+    trello = FakeTrello(
+        {"a" * 24: {"title": "Real idea", "list": "Ideas", "description": "", "comments": ()}}
+    )
+    kora = RunningKora(trello, product_owner_works)
+    with pytest.raises(RuntimeError, match="Real idea"):
+        await evaluate("product-owner", kora, trello, no_posts, start=START)
+    assert kora.fired == ()
+
+
+def test_scrum_master_gets_a_clock_two_hours_on():
+    inputs = run_inputs(FIXTURES["scrum-master"], START)
+    assert inputs == {"now": (START + timedelta(minutes=120)).isoformat()}
+    assert run_inputs(FIXTURES["lunch"], START)["place"] == "Sydney Masonic Centre"
+
+
+def support_files_a_bug(trello: FakeTrello) -> None:
+    source = next(cid for cid, c in trello.cards.items() if c["list"] == "Done")
+    trello.cards = {
+        **trello.cards,
+        "b" * 24: {
+            "title": "Bug: footer year",
+            "list": "Backlog",
+            "description": "",
+            "comments": (),
+        },
+    }
+    trello._comment(source, "Filed as https://trello.com/c/bbbb", "2026-10-25T09:02:00Z")
+
+
+async def test_evaluate_archives_the_bug_the_support_agent_filed():
+    trello = FakeTrello()
+    kora = RunningKora(trello, support_files_a_bug)
+    kora.triggers = ({"id": "t-su", "name": "Support: run now", "kind": "manual"},)
+
+    async def bug_post() -> str:
+        return (
+            '<div data-post="c/1"><div class="tgme_widget_message_text">Bug raised: footer year'
+            '</div><time datetime="2026-10-25T09:03:00+00:00"></time></div>'
+        )
+
+    result = await evaluate("support", kora, trello, bug_post, start=START)
+    assert result.verdict.passed, result.verdict.reasons
+    assert "b" * 24 in trello.archived
+
+
+def scrum_master_blocks(trello: FakeTrello) -> None:
+    card_id = next(cid for cid, c in trello.cards.items() if c["list"] == "In Progress")
+    trello.cards = {**trello.cards, card_id: {**trello.cards[card_id], "list": "Blocked"}}
+    trello._comment(card_id, "Idle 120 min.", "2026-10-25T09:01:00Z")
+
+
+async def test_evaluate_waits_for_the_channel_preview_to_catch_up():
+    trello = FakeTrello()
+    kora = RunningKora(trello, scrum_master_blocks)
+    pages = iter(
+        [
+            "<html></html>",
+            '<div data-post="c/7"><div class="tgme_widget_message_text">Blocked: x</div>'
+            '<time datetime="2026-10-25T09:02:00+00:00"></time></div>',
+        ]
+    )
+
+    async def preview() -> str:
+        return next(pages)
+
+    async def no_wait(_: float) -> None:
+        return None
+
+    result = await evaluate("scrum-master", kora, trello, preview, start=START, sleep=no_wait)
+    assert result.verdict.passed, result.verdict.reasons

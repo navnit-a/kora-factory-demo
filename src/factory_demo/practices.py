@@ -149,6 +149,7 @@ HIGH_SEVERITY = "Severity: high"
 DEPENDS_ON = "Depends on:"
 UNBLOCKED = "Unblocked:"
 REBASE_NEEDED = "Rebase needed:"
+OPERATOR_PREFIX = "Operator:"
 SCOUT_TAGS = ("title", "story", "criteria", "verdict", "dependencies", "reason")
 VERDICTS = ("buildable", "needs_dependency", "not_buildable")
 AGENT_OPS_PREFIX = "Agent ops:"

@@ -71,7 +71,7 @@ READS = {
 MOVES = {
     "product-owner": {"Backlog", "Blocked"},
     "delivery-lead": {"Ready", "Blocked"},
-    "scrum-master": {"Blocked", "In Progress"},
+    "scrum-master": {"Blocked"},
     "senior-developer": {"In Progress", "Review", "Blocked"},
     "code-reviewer": {"Testing", "In Progress", "Blocked"},
     "tester": {"Done", "In Progress", "Blocked"},

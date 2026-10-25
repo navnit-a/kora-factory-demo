@@ -78,14 +78,20 @@ def test_scrum_master_does_not_block_paused_lanes():
     assert work.index("4. ") < work.index("move it to Blocked with a reason")
 
 
-def test_scrum_master_may_send_behind_main_cards_back():
+def test_scrum_master_never_moves_cards_for_a_rebase():
     text = prompt("scrum-master")
     work = steps("scrum-master")
-    rebase = work[work.index("5. ") : work.index("6. ")]
-    assert "Review or Testing card" in rebase
-    assert "behind `main`" in rebase
-    assert f"move it to In Progress with a reason starting `{REBASE_NEEDED}`" in rebase
-    assert "rather than to Blocked" in rebase
-    rule = f"Never move a card anywhere but Blocked, or In Progress with `{REBASE_NEEDED}`"
-    assert rule in flat(section(text, "rules"))
-    assert f"In Progress with `{REBASE_NEEDED}`" in flat(section(text, "lane"))
+    conflict = work[work.index("5. ") : work.index("6. ")]
+    assert "behind `main`" in conflict
+    assert "you cannot check that" in conflict
+    assert "still move it to Blocked" in conflict
+    assert "check the pull request's `mergeable`" in conflict
+    assert f"send it back with `{REBASE_NEEDED}`" in conflict
+    assert "never copy a commit id from a comment" in conflict
+    assert "In Progress with a reason" not in work
+    assert "Never move a card anywhere but Blocked;" in flat(section(text, "rules"))
+    lane = flat(section(text, "lane"))
+    assert "to Blocked and nothing else, ever" in lane
+    assert REBASE_NEEDED not in lane
+    assert "rebase" not in flat(section(text, "when_to_stop"))
+    assert len(text.split()) <= 950

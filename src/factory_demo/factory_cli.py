@@ -1,10 +1,16 @@
 import argparse
+import asyncio
 import re
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+
+import httpx
+from fastmcp.exceptions import ToolError
 
 from factory_demo.factory import (
     deploy_factory,
@@ -13,16 +19,20 @@ from factory_demo.factory import (
     set_team_schedules,
 )
 from factory_demo.kora_api import KoraClient
+from factory_demo.operator_notes import Action, post_operator_notes
+from factory_demo.secrets import read_env
 from factory_demo.smoke_runner import wait_until_active
+from factory_tools.trello.client import ENV_KEYS, TrelloClient
 
 LOOPBACK = "127.0.0.1"
 POLICY_SERVICE = "svc/kora-policy-service"
 IDENTITY_SERVICE = "svc/kora-identity"
 FORWARDING = re.compile(r"Forwarding from 127\.0\.0\.1:(\d+) ->")
 MAX_FORWARD_LINES = 5
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 
 
-def factory_command(argv: list[str], client: KoraClient) -> int:
+def factory_command(argv: list[str], client: KoraClient, notes: Callable[[Action], object]) -> int:
     parser = argparse.ArgumentParser(prog="factory.py")
     parser.add_argument("action", choices=("pause", "resume", "status"))
     parser.add_argument("--cadence", choices=("recording", "quiet"), default="quiet")
@@ -31,13 +41,38 @@ def factory_command(argv: list[str], client: KoraClient) -> int:
         for name, cron, enabled in factory_status(client):
             print(f"{'running' if enabled else 'paused':<8} {cron:<16} {name}")
         return 0
+    if args.action == "resume":
+        notes("resume")
     failed = set_team_schedules(client, args.action == "resume", args.cadence)
     if failed:
         state = "still running" if args.action == "pause" else "still paused"
         print(f"{args.action} failed; {state}: {', '.join(failed)}", file=sys.stderr)
         return 1
     print(f"team schedules {'resumed' if args.action == 'resume' else 'paused'} ({args.cadence})")
+    if args.action == "pause":
+        notes("pause")
     return 0
+
+
+def leave_operator_notes(action: Action, env_path: Path = ENV_PATH) -> None:
+    env = read_env(str(env_path)) if env_path.exists() else {}
+    missing = [key for key in ENV_KEYS if not env.get(key)]
+    if missing:
+        print(f"operator notes skipped: set {', '.join(missing)} in .env", file=sys.stderr)
+        return
+    try:
+        asyncio.run(_post_notes(env, action))
+    except ToolError as error:
+        print(f"operator notes not posted: {error}", file=sys.stderr)
+
+
+async def _post_notes(env: dict[str, str], action: Action) -> None:
+    async with httpx.AsyncClient() as http:
+        trello = TrelloClient(
+            env["TRELLO_API_KEY"], env["TRELLO_TOKEN"], env["TRELLO_BOARD_ID"], http
+        )
+        notes = await post_operator_notes(trello, action, datetime.now(UTC))
+    print(f"operator notes on {len(notes)} in-flight cards")
 
 
 def deploy_command(

@@ -96,6 +96,11 @@ class FakeBoard:
         labels = tuple(dict(self.labels[label_id]) for label_id in c["labels"])
         return {"cover": c["cover"], "description": c["description"], "labels": labels}
 
+    async def comment(self, card_id: str, text: str) -> dict:
+        self._write("comment", card_id, text)
+        self._update(card_id, comments=(*self.cards[card_id]["comments"], text))
+        return {"id": card_id, "comment_id": f"cm-{len(self.writes)}"}
+
     async def card(self, card_id: str) -> dict:
         texts = self.cards[card_id]["comments"]
         return {"id": card_id, "comments": [{"when": "", "text": text} for text in texts]}

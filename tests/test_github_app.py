@@ -5,6 +5,7 @@ import httpx
 import pytest
 import respx
 
+from factory_demo import github_app
 from factory_demo.github_app import (
     AppCredentials,
     callback_code,
@@ -16,6 +17,7 @@ from factory_demo.github_app import (
     setup_installation_id,
     trusted_host,
     with_env_values,
+    write_env_atomic,
 )
 
 CALLBACK = "http://127.0.0.1:8765/callback"
@@ -143,3 +145,26 @@ def test_connection_manifest_names_the_owner_and_installation():
         "    owner: navnit-a",
     ):
         assert line in text
+
+
+def test_write_env_atomic_replaces_the_file(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("OLD=1\n")
+    write_env_atomic(env, "NEW=2\n")
+    assert env.read_text() == "NEW=2\n"
+    assert [p.name for p in tmp_path.iterdir()] == [".env"]
+    assert env.stat().st_mode & 0o077 == 0
+
+
+def test_write_env_atomic_leaves_the_old_file_when_the_write_fails(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text("OLD=1\n")
+
+    def refuse(*_):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(github_app.os, "replace", refuse)
+    with pytest.raises(OSError, match="disk full"):
+        github_app.write_env_atomic(env, "NEW=2\n")
+    assert env.read_text() == "OLD=1\n"
+    assert [p.name for p in tmp_path.iterdir()] == [".env"]

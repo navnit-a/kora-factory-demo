@@ -1,6 +1,9 @@
 import html
 import json
+import os
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
@@ -97,6 +100,17 @@ def with_env_values(text: str, values: dict[str, str]) -> str:
     ]
     appended = [f"{k}={v}" for k, v in values.items() if k not in keys]
     return "\n".join([*replaced, *appended]) + "\n"
+
+
+def write_env_atomic(path: Path, text: str) -> None:
+    descriptor, temp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(text)
+        os.replace(temp, path)
+    except BaseException:
+        Path(temp).unlink(missing_ok=True)
+        raise
 
 
 def connection_manifest(app_id: str, installation_id: str) -> str:

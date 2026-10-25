@@ -19,6 +19,7 @@ from factory_demo.github_app import (  # noqa: E402
     setup_installation_id,
     trusted_host,
     with_env_values,
+    write_env_atomic,
 )
 
 HOST, PORT = "127.0.0.1", 8765
@@ -32,7 +33,7 @@ CREATED: dict[str, str] = {}
 
 
 def write_env(values: dict[str, str]) -> None:
-    ENV_FILE.write_text(with_env_values(ENV_FILE.read_text(), values))
+    write_env_atomic(ENV_FILE, with_env_values(ENV_FILE.read_text(), values))
 
 
 def write_key(pem: str) -> None:

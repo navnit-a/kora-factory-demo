@@ -9,7 +9,7 @@ def test_smoke_agent_body_is_cheap_and_autonomous():
     assert body["model_id"] == "anthropic/claude-haiku-5-5"
     assert body["budget"] == {"per_run_limit_usd": 0.2}
     assert body["environments"] == [{"environment_id": "env-1", "is_default": True}]
-    assert body["max_concurrent_runs_per_pod"] == 1
+    assert body["max_concurrent_runs_per_pod"] == 4
 
 
 def test_smoke_agent_declares_no_inference_scopes_kora_derives_them():

@@ -4,6 +4,7 @@ SMOKE_PROMPT = (
     "report the output in one line, then stop."
 )
 SMOKE_RUN_LIMIT_USD = 0.2
+SMOKE_RUNS_PER_POD = 4
 
 
 def build_smoke_agent(model_id: str, environment_id: str) -> dict:
@@ -16,7 +17,7 @@ def build_smoke_agent(model_id: str, environment_id: str) -> dict:
         "identity_mode": "autonomous",
         "model_id": model_id,
         "environments": [{"environment_id": environment_id, "is_default": True}],
-        "max_concurrent_runs_per_pod": 1,
+        "max_concurrent_runs_per_pod": SMOKE_RUNS_PER_POD,
         "budget": {"per_run_limit_usd": SMOKE_RUN_LIMIT_USD},
     }
 

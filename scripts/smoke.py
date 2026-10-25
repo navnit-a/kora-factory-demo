@@ -16,7 +16,8 @@ from factory_demo.smoke import (  # noqa: E402
 
 MODEL_DEPLOYMENT = "claude-haiku-5-5"
 ENVIRONMENT_SLUG = "node-web"
-BUDGET_STOP_LIMIT_USD = 0.01
+BUDGET_STOP_LIMIT_USD = 0.001
+BUDGET_PROPAGATION_S = 40
 SMOKE_MESSAGE = "Run node --version and stop."
 BUDGET_STOP_MESSAGE = "List every file under /usr/lib, one per line, and summarise each directory."
 
@@ -69,6 +70,8 @@ def smoke(client: KoraClient, agent_id: str) -> int:
 
 def budget_stop(client: KoraClient, agent_id: str) -> int:
     client.update_agent(agent_id, {"budget": {"per_run_limit_usd": BUDGET_STOP_LIMIT_USD}})
+    print(f"waiting {BUDGET_PROPAGATION_S}s for the limit to reach the gateway", flush=True)
+    time.sleep(BUDGET_PROPAGATION_S)
     try:
         started = time.monotonic()
         finished, usage = run_once(client, agent_id, BUDGET_STOP_MESSAGE)

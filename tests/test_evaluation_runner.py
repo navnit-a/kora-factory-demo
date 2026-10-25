@@ -55,7 +55,16 @@ class FakeTrello:
             "url": "",
             "description": card["description"],
             "comments": list(card["comments"]),
+            "labels": list(card.get("labels", ())),
+            "checklist": [
+                {"text": text, "state": state} for text, state in card.get("checklist", ())
+            ],
         }
+
+    async def card_look(self, card_id):
+        card = self.cards[card_id]
+        labels = tuple({"name": name, "color": None} for name in card.get("labels", ()))
+        return {"cover": card.get("cover"), "description": card["description"], "labels": labels}
 
     async def archive(self, card_id):
         self.archived = (*self.archived, card_id)
@@ -93,14 +102,24 @@ class RunningKora(FakeKora):
         return list(self.events)
 
 
-def product_owner_works(trello: FakeTrello) -> None:
+CRITERIA = (("Shows", "incomplete"), ("Counts", "incomplete"), ("Reads", "incomplete"))
+
+
+def write_story(trello: FakeTrello, checklist: tuple[tuple[str, str], ...]) -> None:
     card_id = next(cid for cid, c in trello.cards.items() if c["list"] == "Ideas")
     card = trello.cards[card_id]
-    trello.cards = {
-        **trello.cards,
-        card_id: {**card, "list": "Backlog", "description": "Given x When y Then z"},
+    story = {
+        "list": "Backlog",
+        "description": "Given x When y Then z",
+        "labels": ("Story",),
+        "checklist": checklist,
     }
+    trello.cards = {**trello.cards, card_id: {**card, **story}}
     trello._comment(card_id, "Story ready.", "2026-10-25T09:01:00Z")
+
+
+def product_owner_works(trello: FakeTrello) -> None:
+    write_story(trello, CRITERIA)
 
 
 async def no_posts() -> str:
@@ -116,6 +135,46 @@ async def test_evaluate_passes_a_working_product_owner():
     assert kora.fired == (("t-po", {}),)
     assert len(trello.archived) == 1
     assert kora.events_read == ()
+
+
+async def test_runner_reads_labels_cover_and_checklist():
+    trello = FakeTrello()
+    kora = RunningKora(trello, lambda board: write_story(board, CRITERIA[:2]))
+    result = await evaluate("product-owner", kora, trello, no_posts, start=START)
+    assert result.outcome.labels == ("Story",)
+    assert result.outcome.cover is None
+    assert result.outcome.checklist == CRITERIA[:2]
+    assert result.verdict.reasons == ("checklist has 2 items, expected at least 3",)
+
+
+def ship_as_tester(trello: FakeTrello) -> None:
+    card = trello.cards["c" * 24]
+    done = {
+        "list": "Done",
+        "cover": "green",
+        "labels": ("Story", "Shipped"),
+        "checklist": tuple((text, "complete") for text, _ in CRITERIA),
+    }
+    trello.cards = {**trello.cards, "c" * 24: {**card, **done}}
+    trello._comment("c" * 24, "Shipped: PR 7", "2026-10-25T09:01:00Z")
+
+
+async def test_runner_judges_the_shipped_look_of_a_given_card():
+    testing = {"title": "[fixture] Count", "list": "Testing", "description": "", "comments": ()}
+    trello = FakeTrello({"c" * 24: {**testing, "labels": ("Story",), "checklist": CRITERIA}})
+    kora = RunningKora(trello, ship_as_tester)
+    kora.triggers = ({"id": "t-te", "name": "Tester: run now", "kind": "manual"},)
+
+    async def shipped_post() -> str:
+        return (
+            '<div data-post="c/2"><div class="tgme_widget_message_text">Shipped: Count'
+            '</div><time datetime="2026-10-25T09:03:00+00:00"></time></div>'
+        )
+
+    result = await evaluate("tester", kora, trello, shipped_post, start=START, card_id="c" * 24)
+    assert result.verdict.passed, result.verdict.reasons
+    assert result.outcome.cover == "green"
+    assert trello.archived == ()
 
 
 async def test_evaluate_keeps_the_card_when_asked():
@@ -151,6 +210,7 @@ def support_files_a_bug(trello: FakeTrello) -> None:
             "list": "Backlog",
             "description": "",
             "comments": (),
+            "labels": ("Bug", "High severity"),
         },
     }
     trello._comment(source, "Filed as https://trello.com/c/bbbb", "2026-10-25T09:02:00Z")
@@ -169,6 +229,7 @@ async def test_evaluate_archives_the_bug_the_support_agent_filed():
 
     result = await evaluate("support", kora, trello, bug_post, start=START)
     assert result.verdict.passed, result.verdict.reasons
+    assert result.outcome.labels == ("Bug", "High severity")
     assert "b" * 24 in trello.archived
 
 

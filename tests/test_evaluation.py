@@ -12,8 +12,19 @@ def outcome(**changes) -> Outcome:
         cost_usd=0.05,
         new_cards=(),
         extra_lists={},
+        labels=("Story",),
+        checklist=CRITERIA,
     )
     return Outcome(**{**base.__dict__, **changes})
+
+
+CRITERIA = (
+    ("Shows the count", "incomplete"),
+    ("Counts from data", "incomplete"),
+    ("Read by screen readers", "incomplete"),
+)
+TICKED = tuple((text, "complete") for text, _ in CRITERIA)
+SHIPPED_LOOK = {"cover": "green", "labels": ("Story", "Shipped"), "checklist": TICKED}
 
 
 def test_fixtures_cover_every_agent():
@@ -61,6 +72,7 @@ def test_judge_matches_posts_case_insensitively():
         card_list="Done",
         comments=("Shipped",),
         posts=("Shipped: Show how many sessions",),
+        **SHIPPED_LOOK,
     )
     assert judge(fixture, result, 0.20).passed
 
@@ -91,6 +103,8 @@ def test_support_fixture_needs_a_new_bug_and_a_filed_comment():
         comments=("Filed as https://trello.com/c/abc",),
         posts=("Bug raised: footer year (normal)",),
         new_cards=("Bug: footer says 2025",),
+        labels=("Bug", "High severity"),
+        checklist=(),
     )
     assert judge(fixture, good, 0.20).passed
     missing = outcome(card_list="Done", comments=("Filed as x",), posts=("Bug raised",))
@@ -131,3 +145,35 @@ def test_agent_ops_fixture_needs_its_comment_and_post():
     reasons = judge(fixture, silent, 0.40).reasons
     assert "no comment contains 'Agent ops:'" in reasons
     assert "no Telegram post mentions 'Agent ops'" in reasons
+
+
+def test_judge_checks_labels_cover_and_checklist():
+    owner = FIXTURES["product-owner"]
+    bare = judge(owner, outcome(labels=(), checklist=CRITERIA[:2]), 0.20)
+    assert bare.reasons == ("missing label 'Story'", "checklist has 2 items, expected at least 3")
+    tester = FIXTURES["tester"]
+    shipped = {"card_list": "Done", "comments": ("Shipped",), "posts": ("Shipped: x",)}
+    assert judge(tester, outcome(**shipped, **SHIPPED_LOOK), 0.20).passed
+    half = (TICKED[0], CRITERIA[1], TICKED[2])
+    wrong = judge(tester, outcome(**shipped, cover="lime", checklist=half), 0.20)
+    assert wrong.reasons == (
+        "missing label 'Shipped'",
+        "cover is lime, expected green",
+        "checklist item 'Counts from data' is incomplete",
+    )
+    empty = judge(tester, outcome(**{**shipped, **SHIPPED_LOOK, "checklist": ()}), 0.20)
+    assert empty.reasons == ("checklist has 0 items, expected at least 1",)
+    uncovered = judge(tester, outcome(**{**shipped, **SHIPPED_LOOK, "cover": None}), 0.20)
+    assert uncovered.reasons == ("cover is none, expected green",)
+
+
+def test_support_fixture_needs_a_bug_label_and_high_severity_on_the_new_card():
+    fixture = FIXTURES["support"]
+    filed = outcome(
+        card_list="Done",
+        comments=("Filed as https://trello.com/c/abc",),
+        posts=("Bug raised: footer year (high)",),
+        new_cards=("Bug: footer says 2025",),
+        labels=("Bug",),
+    )
+    assert judge(fixture, filed, 0.20).reasons == ("missing label 'High severity'",)

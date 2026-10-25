@@ -44,6 +44,9 @@ class EvaluationBoard:
     async def card(self, card_id: str) -> dict:
         return await self.trello.card(card_id)
 
+    async def card_look(self, card_id: str) -> dict:
+        return await self.trello.card_look(card_id)
+
     async def archive(self, card_id: str) -> None:
         await self.trello.archive(card_id)
 
@@ -185,7 +188,8 @@ async def _outcome(
     )
     extra_lists = {title: (await board.card(cid))["list"] for title, cid in extra_ids.items()}
     after_new = await _titles(board, fixture)
-    new_cards = tuple(title for cid, title in after_new.items() if cid not in before_new)
+    filed = {cid: title for cid, title in after_new.items() if cid not in before_new}
+    look = await _look(board, fixture, main_id, card, filed)
     return Outcome(
         card_list=card.get("list"),
         description=card.get("description", ""),
@@ -193,9 +197,30 @@ async def _outcome(
         posts=(),
         run_state=run.get("state", ""),
         cost_usd=float(usage.get("spend_usd", 0)),
-        new_cards=new_cards,
+        new_cards=tuple(filed.values()),
         extra_lists=extra_lists,
+        **look,
     )
+
+
+def _filed_card(prefix: str, filed: dict[str, str]) -> str | None:
+    return next((cid for cid, title in filed.items() if title.startswith(prefix)), None)
+
+
+async def _look(
+    board: Any, fixture: Fixture, main_id: str | None, card: dict, filed: dict[str, str]
+) -> dict:
+    prefix = fixture.expect_new_card
+    target = _filed_card(prefix, filed) if prefix else main_id
+    if not target:
+        return {}
+    shown = card if target == main_id else await board.card(target)
+    cover = (await board.card_look(target)).get("cover")
+    return {
+        "labels": tuple(shown.get("labels", ())),
+        "cover": cover,
+        "checklist": tuple((item["text"], item["state"]) for item in shown.get("checklist", ())),
+    }
 
 
 async def _clean_up(

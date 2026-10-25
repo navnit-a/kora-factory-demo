@@ -697,3 +697,47 @@ def test_check_item_refuses_an_ambiguous_prefix():
     )
     assert run(client().check_item(CARD, "Stars"))["item"] == "Stars"
     assert routes["check"].calls[0].request.url.path.endswith("/checkItem/i3")
+
+
+@respx.mock
+def test_label_records_include_unnamed_labels_by_id():
+    mock_look(
+        CARD,
+        board_labels=[
+            {"id": "x", "name": "", "color": "red"},
+            {"id": "b", "name": "Bug", "color": "red"},
+            {"name": "no id", "color": "blue"},
+        ],
+    )
+    assert run(client().label_records()) == {
+        "x": {"name": "", "color": "red"},
+        "b": {"name": "Bug", "color": "red"},
+    }
+
+
+@respx.mock
+def test_rename_label_puts_the_new_name():
+    route = respx.put(f"{API}/labels/lab-1").mock(return_value=httpx.Response(200, json={}))
+    run(client().rename_label("lab-1", "Story"))
+    assert form(route.calls[0].request) == {"name": "Story"}
+
+
+@respx.mock
+def test_card_look_reads_cover_full_description_and_named_labels():
+    text = "x" * 1500
+    card = {
+        "id": CARD,
+        "idBoard": "board",
+        "desc": text,
+        "cover": {"color": "lime", "brightness": "dark"},
+        "labels": [{"id": "a", "name": "Bug"}, {"id": "b", "name": ""}],
+    }
+    route = respx.get(f"{API}/cards/{CARD}").mock(return_value=httpx.Response(200, json=card))
+    assert run(client().card_look(CARD)) == {
+        "cover": "lime",
+        "description": text,
+        "labels": ("Bug",),
+    }
+    assert route.calls[0].request.url.params["fields"] == "idBoard,desc,cover,labels"
+    route.mock(return_value=httpx.Response(200, json={"id": CARD, "idBoard": "board"}))
+    assert run(client().card_look(CARD)) == {"cover": None, "description": "", "labels": ()}

@@ -32,6 +32,9 @@ class TrelloClient:
     set_star = look_client.set_star
     board_labels = look_client.board_labels
     ensure_label = look_client.ensure_label
+    label_records = look_client.label_records
+    rename_label = look_client.rename_label
+    card_look = look_client.card_look
     card_labels = look_client.card_labels
     add_label = look_client.add_label
     remove_label = look_client.remove_label

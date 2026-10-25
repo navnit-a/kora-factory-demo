@@ -70,6 +70,31 @@ async def board_labels(client: TrelloClient) -> dict[str, str]:
     return {label["name"]: label["id"] for label in labels if label.get("name") and label.get("id")}
 
 
+async def label_records(client: TrelloClient) -> dict[str, dict]:
+    found = await client._read(f"/boards/{client.board_id}/labels", {"fields": "id,name,color"})
+    labels = found if isinstance(found, list) else []
+    return {
+        label["id"]: {"name": label.get("name") or "", "color": label.get("color")}
+        for label in labels
+        if isinstance(label.get("id"), str) and label["id"]
+    }
+
+
+async def rename_label(client: TrelloClient, label_id: str, name: str) -> None:
+    await client._write("PUT", f"/labels/{label_id}", {"name": name})
+
+
+async def card_look(client: TrelloClient, card_id: str) -> dict:
+    card = await client._board_card(card_id, "idBoard,desc,cover,labels")
+    cover = card.get("cover")
+    color = cover.get("color") if isinstance(cover, dict) else None
+    return {
+        "cover": color if isinstance(color, str) and color else None,
+        "description": card.get("desc") or "",
+        "labels": tuple(label["name"] for label in card.get("labels", []) if label.get("name")),
+    }
+
+
 async def ensure_label(client: TrelloClient, name: str) -> str:
     if name not in LABELS:
         known = ", ".join(LABELS)

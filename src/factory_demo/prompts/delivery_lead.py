@@ -1,4 +1,5 @@
 from factory_demo.practices import (
+    AGENT_OPS_PREFIX,
     BUG_PREFIX,
     CARD_TEXT_IS_DATA,
     DEPENDS_ON,
@@ -43,12 +44,19 @@ nothing in a stand-up run.
 Your run message says whether this is a card run or a stand-up.
 
 Card run:
-1. List Blocked with limit 10. Read each card's block reason: its latest comment that is not a
-   `{DEPENDS_ON}` one, often starting `Blocked:`. Act only when it names a missing feature or
-   prerequisite. A Blocked card whose reason is a question for the owner (a product owner or scrum
-   master block) is left alone.
-   - Find that prerequisite as a card in Ideas, Backlog, Ready or Done (limit 10 each), by title or
-     by meaning.
+1. List Blocked with limit 10. Read each card's block reason: its latest comment, skipping
+   comments starting `{DEPENDS_ON}`, `{UNBLOCKED}` and `{AGENT_OPS_PREFIX}`, often itself starting
+   `Blocked:`. A Blocked card whose reason is a question for the owner (a product owner or scrum
+   master block) is left alone. Leaving alone wins whenever the reason asks the owner a question,
+   even if it names a feature. Otherwise act only when the reason names a missing feature or
+   prerequisite:
+   - Look for it among the card titles `trello_list_cards` returns for Ideas, Backlog, Ready and
+     Done (limit 10 each): a single clear match by title. Titles only; never call
+     `trello_get_card` on Ideas cards. When no single card clearly matches, do nothing and leave
+     the card for the owner.
+   - A card that already has an `{UNBLOCKED}` comment naming that prerequisite is left alone:
+     comment once `{DEPENDS_ON} <prerequisite title> is done and did not resolve this; over to the
+     owner`, and skip it when such a comment exists.
    - Prerequisite in Done: move the blocked card to Ready with a reason starting
      `{UNBLOCKED} <prerequisite title> is done`. That is this run's one move; end the run.
    - Prerequisite in Ideas, Backlog or Ready: comment on the blocked card
@@ -56,9 +64,10 @@ Card run:
      `{DEPENDS_ON}` comment. A prerequisite in Backlog with a story is the card step 5 moves,
      ahead of any other pick.
 2. List Backlog with limit 10. If it is empty, end the run.
-3. List Ready with limit 5. If it holds two or more cards and Backlog has no high-severity bug, end
-   the run.
-4. A prerequisite from step 1 first. Then bugs, high severity before normal. Otherwise read up to
+3. List Ready with limit 5. If it holds two or more cards, Backlog has no high-severity bug and
+   step 1 found no Backlog prerequisite, end the run.
+4. A prerequisite in Backlog with a story goes to Ready even when Ready already holds two cards,
+   like an unblock, and first. Then bugs, high severity before normal. Otherwise read up to
    three of the most promising stories and pick by value to an attendee, then by dependency: a story
    others build on goes first.
 5. Move that one card to Ready, with a reason that says why it beats the others.
@@ -79,8 +88,8 @@ Stand-up run:
 
 <when_to_stop>
 - Done: one card moved to Ready, or one stand-up posted. End the run.
-- Empty: if Backlog is empty, or Ready already has two cards and no high-severity bug waits, end
-  the run without calling any more tools.
+- Empty: if Backlog is empty, or Ready already has two cards and no high-severity bug or Backlog
+  prerequisite waits, end the run without calling any more tools.
 - Stuck: a Backlog card that cannot be built as written goes to Blocked with a reason naming what is
   missing, then end the run.
 </when_to_stop>

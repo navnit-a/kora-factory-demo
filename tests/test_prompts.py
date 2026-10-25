@@ -247,6 +247,48 @@ def test_delivery_lead_orders_prerequisites_and_returns_unblocked_cards():
     assert f"`{DEPENDS_ON} <prerequisite title> (<card url>)`" in steps
 
 
+def delivery_steps() -> str:
+    return " ".join(section(prompt("delivery-lead"), "how_to_work").split())
+
+
+def test_delivery_lead_does_not_unblock_the_same_card_twice():
+    steps = delivery_steps()
+    assert f"already has an `{UNBLOCKED}` comment naming that prerequisite is left alone" in steps
+    assert "did not resolve this" in steps
+    assert "skip it when such a comment exists" in steps
+
+
+def test_owner_questions_win_over_prerequisite_matching():
+    steps = delivery_steps()
+    assert "Leaving alone wins whenever the reason asks the owner a question" in steps
+    assert "even if it names a feature" in steps
+
+
+def test_delivery_lead_matches_prerequisites_by_title_only():
+    text = prompt("delivery-lead")
+    steps = delivery_steps()
+    assert "by meaning" not in text
+    assert "a single clear match by title" in steps
+    assert "never call `trello_get_card` on Ideas cards" in steps
+    assert "When no single card clearly matches, do nothing and leave the card" in steps
+
+
+def test_delivery_lead_skips_bookkeeping_comments_when_reading_the_reason():
+    steps = delivery_steps()
+    skipped = f"skipping comments starting `{DEPENDS_ON}`, `{UNBLOCKED}` and `{AGENT_OPS_PREFIX}`"
+    assert skipped in steps
+
+
+def test_delivery_lead_pulls_a_backlog_prerequisite_past_the_ready_cap():
+    steps = delivery_steps()
+    assert (
+        "A prerequisite in Backlog with a story goes to Ready even when Ready already holds two "
+        "cards, like an unblock" in steps
+    )
+    stop = " ".join(section(prompt("delivery-lead"), "when_to_stop").split())
+    assert "no high-severity bug or Backlog prerequisite waits" in stop
+
+
 def test_delivery_lead_moves_blocked_and_backlog_cards_only_to_ready():
     lane = " ".join(section(prompt("delivery-lead"), "lane").split())
     assert "A Blocked card goes back to Ready" in lane

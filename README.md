@@ -2,8 +2,10 @@
 
 A small agent factory on [kora](https://github.com/runkora/kora) for the PlatformCon Sydney launch
 video: six team agents that work a Trello board and ship a web app, a Sydney trains agent and a lunch
-agent that post to Telegram. The design, plans and practice notes are kept locally and are not
-published; the rules each agent follows are carried in its prompt.
+agent that post to Telegram, an idea scout behind the Telegram idea door, and agent ops, which reads
+the other agents' runs every 30 minutes, names a refused grant to the operator on the card and in
+Telegram, and proposes prompt fixes as pull requests on this repo. The design, plans and practice
+notes are kept locally and are not published; the rules each agent follows are carried in its prompt.
 
 ## Session runbook
 
@@ -52,6 +54,18 @@ First time, or after `make reset`:
     600) and the ids in `.env`; `scripts/deploy-tools.sh` then applies the `github-app-key` Secret
     and the `github` Connection, and `deploy-factory.py --with-github` adds the GitHub agents.
 
+14. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
+    agent ops runs in, and reports `node-web` as already there. Then
+    `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
+    agent ops schedule paused.
+
+15. `uv run python scripts/create-bridge-token.py` creates the bridge's kora token, allowed only to
+    fire `Idea scout: scout` and read the scout's runs, and writes `KORA_BRIDGE_TOKEN` and
+    `KORA_SCOUT_TRIGGER_ID` into `.env`. It prints the expiry date.
+
+16. `scripts/session-start.sh` now also starts the bridge in the background on this Mac, logging to
+    `deploy/generated/bridge.log`; `scripts/session-stop.sh` stops it.
+
 Every later session: `scripts/session-start.sh` (Docker check, `make up`, sign-in, platform check,
 factory status), then `uv run python scripts/factory.py resume --cadence recording` to start the
 team. `scripts/session-stop.sh` pauses every team schedule and fails loudly if any is still running;
@@ -61,6 +75,28 @@ add `--down` to stop the cluster. The trains and lunch schedules stay on; every 
 Dashboard: https://local.runkora.io, sign in as `dev@local.runkora.io`. API: https://api.local.runkora.io.
 The local TLS certificate comes from mkcert; the API client verifies against `$(mkcert -CAROOT)/rootCA.pem`
 or `KORA_CA_FILE`.
+
+## The idea door
+
+Anyone on the allowlist can DM the bot `/idea <text>`. The bridge acknowledges it and fires the idea
+scout, which reads the planner without writing anything, writes the idea up as a story with
+acceptance criteria and judges whether the planner can build it as it is, once it has something
+else, or not at all. The bridge sends that write-up back; when the proposer replies `yes`, the card
+appears in Ideas and the product owner picks it up from there. `no` drops it. An idea the scout
+judges not buildable stays off the board.
+
+The allowlist is `deploy/generated/ideas-allowlist` (gitignored). Someone not on it gets a refusal
+that names their Telegram id; `uv run python scripts/ideas-allow.py <id> [name]` adds them. Each
+sender can send five ideas an hour.
+
+The bridge's kora token lasts 90 days. When it runs out, `uv run python scripts/create-bridge-token.py`
+makes a new one, then restart the session. The bridge runs on this Mac from the session scripts, not
+in the cluster.
+
+`uv run --env-file .env python scripts/ideas-bridge.py --once "<idea>" --from <name>` scouts one idea
+and prints the reply without Telegram or the board, as a dry run.
+
+The bridge handles one message at a time, so while one scout runs, other senders wait.
 
 ## Secrets
 

@@ -155,7 +155,7 @@ def test_status_lists_schedules_with_cron_and_state():
     kora = FakeKora()
     deploy_factory(kora, "quiet", include_github=False)
     rows = factory_status(kora)
-    assert ("Product owner: every 10 min", "*/10 * * * *", False) in rows
+    assert ("Product owner: every 10 min", "3-59/10 * * * *", False) in rows
     assert ("Lunch: 11:30 weekdays", "30 11 * * 1-5", True) in rows
     assert all(not name.endswith("run now") for name, _, _ in rows)
 

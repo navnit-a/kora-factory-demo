@@ -10,8 +10,8 @@ def test_status_prints_each_schedule(capsys):
     deploy_factory(kora, "quiet", include_github=False)
     assert factory_command(["status"], kora) == 0
     out = capsys.readouterr().out
-    assert "paused   */10 * * * *   Product owner: every 10 min" in out
-    assert "running  0 7 * * 1-5    Sydney trains: 07:00 weekdays" in out
+    assert "paused   3-59/10 * * * *  Product owner: every 10 min" in out
+    assert "running  0 7 * * 1-5      Sydney trains: 07:00 weekdays" in out
 
 
 def test_resume_uses_the_cadence_flag(capsys):

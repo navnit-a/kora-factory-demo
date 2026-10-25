@@ -1,3 +1,7 @@
+from collections import Counter
+
+import pytest
+
 from factory_demo.roster import (
     CARD_TICK,
     GITHUB_RESOURCE,
@@ -7,6 +11,7 @@ from factory_demo.roster import (
     WATCHED,
     Schedule,
     by_slug,
+    every,
 )
 from factory_demo.tools_check import PLATFORM_TOOLS, expected_tool_names
 
@@ -90,19 +95,57 @@ def test_team_cadences():
     crons = {
         spec.slug: [(s.cron_recording, s.cron_quiet) for s in spec.schedules] for spec in ROSTER
     }
-    assert crons["product-owner"] == [("*/10 * * * *", "*/10 * * * *")]
+    assert crons["product-owner"] == [("3-59/10 * * * *", "3-59/10 * * * *")]
     assert crons["delivery-lead"] == [
-        ("*/10 * * * *", "*/10 * * * *"),
+        ("4-59/10 * * * *", "4-59/10 * * * *"),
         ("0 9 * * 1-5", "0 9 * * 1-5"),
     ]
-    assert crons["scrum-master"] == [("*/15 * * * *", "*/15 * * * *")]
-    for slug in BUILDERS:
-        assert crons[slug] == [("*/5 * * * *", "*/15 * * * *")]
-    assert crons["support"] == [("*/15 * * * *", "*/15 * * * *")]
+    assert crons["scrum-master"] == [("6-59/15 * * * *", "6-59/15 * * * *")]
+    assert crons["senior-developer"] == [("*/5 * * * *", "*/15 * * * *")]
+    assert crons["code-reviewer"] == [("1-59/5 * * * *", "1-59/15 * * * *")]
+    assert crons["tester"] == [("2-59/5 * * * *", "2-59/15 * * * *")]
+    assert crons["support"] == [("8-59/15 * * * *", "8-59/15 * * * *")]
     assert crons["sydney-trains"] == [("0 7 * * 1-5", "0 7 * * 1-5")]
     assert crons["lunch"] == [("30 11 * * 1-5", "30 11 * * 1-5")]
     assert crons["idea-scout"] == []
-    assert crons["agent-ops"] == [("*/30 * * * *", "0 * * * *")]
+    assert crons["agent-ops"] == [("12-59/30 * * * *", "12 * * * *")]
+
+
+def test_every_offsets_the_minute():
+    schedule = every(5, 15, offset=2)
+    assert schedule.cron_recording == "2-59/5 * * * *"
+    assert schedule.cron_quiet == "2-59/15 * * * *"
+    assert every(10).cron_recording == "*/10 * * * *"
+    assert every(10, offset=0).cron_quiet == "*/10 * * * *"
+
+
+def test_every_rejects_an_offset_beyond_the_interval():
+    with pytest.raises(ValueError, match="offset"):
+        every(5, offset=5)
+    with pytest.raises(ValueError, match="offset"):
+        every(10, 15, offset=12)
+
+
+def minutes_of(cron: str) -> tuple[int, ...]:
+    field = cron.split()[0]
+    span, _, step = field.partition("/")
+    start = 0 if span == "*" else int(span.split("-")[0])
+    return tuple(range(start, 60, int(step))) if step else (start,)
+
+
+def test_no_two_team_agents_start_on_the_same_minute_at_recording_cadence():
+    starts = tuple(
+        (minute, spec.slug)
+        for spec in ROSTER
+        for schedule in spec.schedules
+        if schedule.team and "/" in schedule.cron_recording.split()[0]
+        for minute in minutes_of(schedule.cron_recording)
+    )
+    per_minute = Counter(minute for minute, _ in starts)
+    assert max(per_minute.values()) <= 2, per_minute
+    for minute in range(60):
+        slugs = {slug for at, slug in starts if at == minute}
+        assert not slugs >= BUILDERS, minute
 
 
 def test_only_team_schedules_pause_with_the_session():
@@ -149,7 +192,7 @@ def test_agent_ops_reads_every_other_agents_runs():
 
 def test_agent_ops_quiet_cron_is_hourly():
     assert by_slug("agent-ops").schedules == (
-        Schedule("every 30 min", "*/30 * * * *", "0 * * * *", CARD_TICK, True),
+        Schedule("every 30 min", "12-59/30 * * * *", "12 * * * *", CARD_TICK, True),
     )
 
 

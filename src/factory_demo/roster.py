@@ -107,10 +107,21 @@ class AgentSpec:
     grant_scopes: tuple[str, ...] = ()
 
 
-def every(minutes: int, quiet_minutes: int | None = None) -> Schedule:
+def stepped(minutes: int, offset: int) -> str:
+    start = f"{offset}-59" if offset else "*"
+    return f"{start}/{minutes} * * * *"
+
+
+def every(minutes: int, quiet_minutes: int | None = None, offset: int = 0) -> Schedule:
     quiet = quiet_minutes or minutes
+    if not 0 <= offset < min(minutes, quiet):
+        raise ValueError(f"offset {offset} must be at least 0 and below the {minutes} min interval")
     return Schedule(
-        f"every {minutes} min", f"*/{minutes} * * * *", f"*/{quiet} * * * *", CARD_TICK, True
+        f"every {minutes} min",
+        stepped(minutes, offset),
+        stepped(quiet, offset),
+        CARD_TICK,
+        True,
     )
 
 
@@ -147,7 +158,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         None,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(10),),
+        (every(10, offset=3),),
         (RUN_NOW,),
     ),
     AgentSpec(
@@ -161,7 +172,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         None,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(10), daily("stand-up", "0 9 * * 1-5", STAND_UP, True)),
+        (every(10, offset=4), daily("stand-up", "0 9 * * 1-5", STAND_UP, True)),
         (RUN_NOW, Manual("stand-up now", STAND_UP_NOW)),
     ),
     AgentSpec(
@@ -175,7 +186,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         None,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(15),),
+        (every(15, offset=6),),
         (
             Manual(
                 "run now",
@@ -196,7 +207,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         NODE_WEB,
         0.40,
         10.0,
-        (every(5, 15),),
+        (every(5, 15, offset=0),),
         (RUN_NOW,),
     ),
     AgentSpec(
@@ -210,7 +221,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         NODE_WEB,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(5, 15),),
+        (every(5, 15, offset=1),),
         (RUN_NOW,),
     ),
     AgentSpec(
@@ -224,7 +235,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         NODE_WEB,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(5, 15),),
+        (every(5, 15, offset=2),),
         (RUN_NOW,),
     ),
     AgentSpec(
@@ -245,7 +256,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         NODE_WEB,
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
-        (every(15),),
+        (every(15, offset=8),),
         (RUN_NOW,),
     ),
     AgentSpec(
@@ -327,7 +338,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         PYTHON_TOOLS,
         0.40,
         5.0,
-        (Schedule("every 30 min", "*/30 * * * *", "0 * * * *", CARD_TICK, True),),
+        (Schedule("every 30 min", "12-59/30 * * * *", "12 * * * *", CARD_TICK, True),),
         (RUN_NOW,),
         github_resources=(OPS_REPO,),
         grant_scopes=AGENT_OPS_SCOPES,

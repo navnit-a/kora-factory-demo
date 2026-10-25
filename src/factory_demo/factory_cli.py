@@ -29,7 +29,7 @@ def factory_command(argv: list[str], client: KoraClient) -> int:
     args = parser.parse_args(argv)
     if args.action == "status":
         for name, cron, enabled in factory_status(client):
-            print(f"{'running' if enabled else 'paused':<8} {cron:<14} {name}")
+            print(f"{'running' if enabled else 'paused':<8} {cron:<16} {name}")
         return 0
     failed = set_team_schedules(client, args.action == "resume", args.cadence)
     if failed:

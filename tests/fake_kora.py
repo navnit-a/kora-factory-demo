@@ -1,22 +1,29 @@
 from factory_demo.kora_api import KoraAuthError
 
 MODELS = [{"id": "anthropic/claude-haiku-5-5"}, {"id": "anthropic/claude-sonnet-5-5"}]
+ENVIRONMENTS = ({"id": "env-1", "slug": "node-web"},)
 
 
 class FakeKora:
-    def __init__(self, fail_patch_for: str | None = None, cap: dict | None = None):
+    def __init__(
+        self,
+        fail_patch_for: str | None = None,
+        cap: dict | None = None,
+        environments: tuple[dict, ...] = ENVIRONMENTS,
+    ):
         self.agents: tuple[dict, ...] = ()
         self.triggers: tuple[dict, ...] = ()
         self.patches: tuple[tuple[str, dict], ...] = ()
         self.cap = cap
         self.cap_sets = 0
         self.fail_patch_for = fail_patch_for
+        self.environments = environments
 
     def list_models(self):
         return MODELS
 
     def list_environments(self):
-        return [{"id": "env-1", "slug": "node-web"}]
+        return list(self.environments)
 
     def list_agents(self):
         return list(self.agents)

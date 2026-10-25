@@ -37,18 +37,29 @@ def deploy_factory(
     environments = {e["slug"]: e["id"] for e in client.list_environments()}
     agents = {a["slug"]: a for a in client.list_agents()}
     triggers = {t["name"]: t for t in client.list_triggers()}
+    deployable = [s for s in ROSTER if include_github or not s.github_actions]
+    environment_ids = {s.slug: pick_environment(environments, s.environment) for s in deployable}
     report = DeployReport((), (), ())
     for spec in ROSTER:
         if spec.github_actions and not include_github:
             report = _with(report, skipped=f"{spec.name}: {GITHUB_SKIP_REASON}")
             continue
         model_id = pick_model(models, spec.model)
-        environment_id = environments.get(spec.environment) if spec.environment else None
+        environment_id = environment_ids[spec.slug]
         agent, report = _upsert_agent(client, spec, agents, model_id, environment_id, report)
         if wait is not None:
             wait(agent["id"])
         report = _upsert_triggers(client, spec, agent["id"], cadence, triggers, report)
     return report
+
+
+def pick_environment(environments: dict[str, str], wanted: str | None) -> str | None:
+    if wanted is None:
+        return None
+    if wanted not in environments:
+        known = ", ".join(environments) or "none"
+        raise LookupError(f"{wanted} not in kora's environment list: {known}")
+    return environments[wanted]
 
 
 def set_team_schedules(client: KoraClient, enabled: bool, cadence: Cadence) -> tuple[str, ...]:

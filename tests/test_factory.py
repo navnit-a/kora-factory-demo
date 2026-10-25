@@ -1,4 +1,5 @@
 import httpx
+import pytest
 
 from factory_demo.factory import (
     TENANT_CAP_USD,
@@ -55,6 +56,14 @@ def test_deploy_twice_updates_in_place_and_keeps_paused():
     later = kora.patches[patches_before:]
     assert all("enabled" not in patch for _, patch in later)
     assert by_name(kora)["Product owner: every 10 min"]["enabled"] is False
+
+
+def test_deploy_refuses_when_an_agents_environment_is_missing():
+    kora = FakeKora(environments=())
+    with pytest.raises(LookupError, match="node-web"):
+        deploy_factory(kora, "quiet", include_github=True)
+    assert kora.agents == ()
+    assert kora.triggers == ()
 
 
 def test_github_agents_are_skipped_until_asked():

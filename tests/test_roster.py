@@ -8,10 +8,12 @@ ORDER = (
     "senior-developer",
     "code-reviewer",
     "tester",
+    "support",
     "sydney-trains",
     "lunch",
 )
-GITHUB_AGENTS = {"senior-developer", "code-reviewer", "tester"}
+BUILDERS = {"senior-developer", "code-reviewer", "tester"}
+GITHUB_AGENTS = {*BUILDERS, "support"}
 
 
 def test_roster_has_the_eight_agents_in_order():
@@ -44,8 +46,15 @@ def test_only_developer_reviewer_tester_reach_github():
         assert (spec.environment == "node-web") == (spec.slug in GITHUB_AGENTS), spec.slug
 
 
-def test_nobody_creates_cards():
-    assert all("trello_create_card" not in spec.tools for spec in ROSTER)
+def test_only_support_creates_cards():
+    creators = {spec.slug for spec in ROSTER if "trello_create_card" in spec.tools}
+    assert creators == {"support"}
+
+
+def test_support_reads_github_but_never_writes():
+    support = by_slug("support")
+    assert support.github_actions == ("contents:read", "actions:read", "checks:read")
+    assert "trello_move_card" not in support.tools
 
 
 def test_only_the_tester_merges():
@@ -64,8 +73,9 @@ def test_team_cadences():
         ("0 9 * * 1-5", "0 9 * * 1-5"),
     ]
     assert crons["scrum-master"] == [("*/15 * * * *", "*/15 * * * *")]
-    for slug in GITHUB_AGENTS:
+    for slug in BUILDERS:
         assert crons[slug] == [("*/5 * * * *", "*/15 * * * *")]
+    assert crons["support"] == [("*/15 * * * *", "*/15 * * * *")]
     assert crons["sydney-trains"] == [("0 7 * * 1-5", "0 7 * * 1-5")]
     assert crons["lunch"] == [("30 11 * * 1-5", "30 11 * * 1-5")]
 

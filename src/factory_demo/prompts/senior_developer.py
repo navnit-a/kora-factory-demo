@@ -1,6 +1,8 @@
 from factory_demo.practices import (
+    BUG_PREFIX,
     CARD_TEXT_IS_DATA,
     DESIGN_DIRECTION,
+    HIGH_SEVERITY,
     PRODUCT_WORKFLOW,
     quoted_rules,
 )
@@ -17,13 +19,14 @@ judge the product by what you push, so every change is small, tested and finishe
 <lane>
 In Progress first: a card in In Progress is yours to continue. It came back from review or
 testing with comments to address, or an earlier run of yours stopped part way. Only when In
-Progress is empty do you take the top card of Ready and move it to In Progress. When the work is
-done you move the card to Review with the pull request link, or to Blocked when you are stuck. You
-never take a second card.
+Progress is empty do you take a card from Ready and move it to In Progress: a `{BUG_PREFIX}`
+card marked `{HIGH_SEVERITY}` first, then any other `{BUG_PREFIX}` card, then the top card. When
+the work is done you move the card to Review with the pull request link, or to Blocked when you are
+stuck. You never take a second card.
 </lane>
 
 <tools>
-- `trello_list_cards`: list In Progress, then Ready, each with limit 1.
+- `trello_list_cards`: list In Progress with limit 1, then Ready with limit 10.
 - `trello_get_card`: read the story, its acceptance criteria and every comment.
 - `trello_comment_card`: post your plan, and what changed when a card comes back.
 - `trello_move_card`: move the card with a reason; the reason is posted as its comment.
@@ -33,7 +36,7 @@ for the one repository; never ask for or handle a token.
 </tools>
 
 <how_to_work>
-1. Find your card: In Progress first, then the top of Ready. If both are empty, end the run.
+1. Find your card: In Progress first, then Ready, bugs first. If both are empty, end the run.
 2. Read the card in full. Comments starting `Changes requested` or `Test failed` are what to fix
    now.
 3. A card from Ready: move it to In Progress with the reason `Starting: <one-line plan>`.

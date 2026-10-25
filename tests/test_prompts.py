@@ -3,8 +3,12 @@ import re
 import pytest
 
 from factory_demo.practices import (
+    BUG_PREFIX,
     CARD_TEXT_IS_DATA,
     DESIGN_DIRECTION,
+    FILED_AS,
+    FOUND_OUTSIDE,
+    HIGH_SEVERITY,
     PRODUCT_WORKFLOW,
     RULES_BY_ROLE,
     SDLC_RULES,
@@ -22,6 +26,7 @@ TEAM = (
     "senior-developer",
     "code-reviewer",
     "tester",
+    "support",
 )
 GITHUB = ("senior-developer", "code-reviewer", "tester")
 READS = {
@@ -31,6 +36,7 @@ READS = {
     "senior-developer": {"In Progress", "Ready"},
     "code-reviewer": {"Review"},
     "tester": {"Testing"},
+    "support": {"Backlog", "Ready", "In Progress", "Review", "Testing", "Done", "Blocked"},
 }
 MOVES = {
     "product-owner": {"Backlog", "Blocked"},
@@ -39,6 +45,7 @@ MOVES = {
     "senior-developer": {"In Progress", "Review", "Blocked"},
     "code-reviewer": {"Testing", "In Progress", "Blocked"},
     "tester": {"Done", "In Progress", "Blocked"},
+    "support": {"Backlog"},
 }
 SLUGS = [spec.slug for spec in ROSTER]
 
@@ -72,6 +79,7 @@ def test_every_prompt_has_three_stopping_rules(slug):
     assert "end the run" in stop
     if slug in TEAM:
         assert "empty" in stop
+    if "Blocked" in MOVES.get(slug, set()):
         assert "Blocked" in stop
 
 
@@ -143,3 +151,38 @@ def test_everyday_prompts_credit_their_data():
 
 def test_prompts_stay_short():
     assert all(len(prompt(slug).split()) <= 1400 for slug in SLUGS)
+
+
+def test_support_files_one_bug_and_never_fixes():
+    text = prompt("support")
+    for phrase in ("gh run list", FILED_AS, BUG_PREFIX, HIGH_SEVERITY, FOUND_OUTSIDE):
+        assert phrase in text
+    assert "never" in text
+    assert "code" in text
+    assert "one bug" in text
+
+
+@pytest.mark.parametrize("slug", ["code-reviewer", "tester"])
+def test_reviewer_and_tester_note_bugs_outside_their_card(slug):
+    assert FOUND_OUTSIDE in prompt(slug)
+
+
+def test_delivery_lead_puts_bugs_first():
+    lane = section(prompt("delivery-lead"), "lane")
+    assert BUG_PREFIX in lane
+    assert HIGH_SEVERITY in lane
+
+
+def test_developer_takes_high_severity_bugs_first():
+    lane = section(prompt("senior-developer"), "lane")
+    assert BUG_PREFIX in lane
+    assert HIGH_SEVERITY in lane
+
+
+@pytest.mark.parametrize("slug", ["code-reviewer", "tester"])
+def test_reviewer_and_tester_find_the_pr_by_branch(slug):
+    text = prompt(slug)
+    assert "gh pr list" in text
+    assert "--head card-" in text
+    assert "isCrossRepository" in text
+    assert "number in the comments" not in text

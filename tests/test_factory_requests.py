@@ -122,3 +122,15 @@ def test_trigger_patch_keeps_only_mutable_fields():
         "dedupe_enabled",
     }
     assert patch is not request
+
+
+def test_support_gets_read_only_github():
+    request = agent_request(by_slug("support"), "anthropic/claude-haiku-5-5", "e-1")
+    assert request["connectors"] == [
+        {
+            "connection": "github",
+            "actions": ["contents:read", "actions:read", "checks:read"],
+            "resources": ["platformcon-day-planner"],
+        }
+    ]
+    assert "mcp:trello:trello_create_card:use" in request["mcp_tools"]

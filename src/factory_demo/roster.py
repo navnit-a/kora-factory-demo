@@ -16,6 +16,7 @@ TRELLO_WORK = (*TRELLO_READ, "trello_move_card", "trello_comment_card")
 TELEGRAM = ("telegram_send_message",)
 GITHUB_WRITE = ("contents:write", "pulls:write", "checks:read", "actions:read")
 GITHUB_REVIEW = ("contents:read", "pulls:write", "checks:read", "actions:read")
+GITHUB_READ = ("contents:read", "actions:read", "checks:read")
 TEAM_RUN_LIMIT_USD = 0.20
 TEAM_WEEKLY_USD = 3.0
 
@@ -173,6 +174,20 @@ ROSTER: tuple[AgentSpec, ...] = (
         TEAM_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
         (every(5, 15),),
+        (RUN_NOW,),
+    ),
+    AgentSpec(
+        "support",
+        "Support",
+        "Triages bugs found outside the card in hand and red builds on main, and files each "
+        "one as a Bug card in Backlog for the team to fix. Never fixes anything itself.",
+        HAIKU,
+        (*TRELLO_READ, "trello_create_card", "trello_comment_card", *TELEGRAM),
+        GITHUB_READ,
+        NODE_WEB,
+        TEAM_RUN_LIMIT_USD,
+        TEAM_WEEKLY_USD,
+        (every(15),),
         (RUN_NOW,),
     ),
     AgentSpec(

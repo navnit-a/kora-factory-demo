@@ -39,8 +39,16 @@ def test_rank_places_sorts_by_distance_and_limits():
         "cuisine": "",
         "distance_m": 35,
         "street": "Goulburn Street",
+        "lat": -33.8779,
+        "lon": 151.2049,
     }
     assert places[2]["cuisine"] == "thai"
+
+
+def test_rank_places_keeps_each_places_coordinates():
+    elements = [{"lat": -33.8779, "lon": 151.2051, "tags": {"name": "Cafe A", "amenity": "cafe"}}]
+    [place] = rank_places(elements, -33.8776, 151.2048, 3)
+    assert (place["lat"], place["lon"]) == (-33.8779, 151.2051)
 
 
 def test_rank_skips_nodes_without_a_name():

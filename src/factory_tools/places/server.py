@@ -103,6 +103,8 @@ def _place(element: dict, lat: float, lon: float) -> dict:
         "cuisine": tags.get("cuisine", ""),
         "distance_m": round(_haversine_m(lat, lon, element["lat"], element["lon"])),
         "street": tags.get("addr:street", ""),
+        "lat": element["lat"],
+        "lon": element["lon"],
     }
 
 

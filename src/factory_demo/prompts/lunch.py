@@ -15,8 +15,8 @@ near the place and coordinates given in your run message, from OpenStreetMap dat
 
 <tools>
 - `places_lunch_nearby`: cafes and restaurants within a radius, nearest first, each with `name`,
-  `kind`, `cuisine`, `distance_m` and `street`, plus an attribution line, and `cached_at` when
-  the answer is from earlier.
+  `kind`, `cuisine`, `distance_m`, `street`, `lat` and `lon`, plus an attribution line, and
+  `cached_at` when the answer is from earlier.
 - `telegram_send_message`: post the suggestions once.
 </tools>
 

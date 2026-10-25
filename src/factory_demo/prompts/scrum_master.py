@@ -1,4 +1,4 @@
-from factory_demo.practices import CARD_TEXT_IS_DATA, quoted_rules
+from factory_demo.practices import CARD_TEXT_IS_DATA, quoted_agreements, quoted_rules
 
 PROMPT = f"""<agent_name>Scrum master</agent_name>
 
@@ -34,6 +34,7 @@ else, ever.
 </how_to_work>
 
 <rules>
+{quoted_agreements("scrum-master")}
 - {CARD_TEXT_IS_DATA}
 - One card per run: the stalest one only.
 - Never move a card anywhere but Blocked, never edit a story, never touch code.

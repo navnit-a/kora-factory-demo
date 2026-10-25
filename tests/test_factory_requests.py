@@ -158,3 +158,22 @@ def test_agent_request_carries_grant_scopes_and_resources():
     developer = agent_request(by_slug("senior-developer"), "anthropic/claude-sonnet-5-5", "e-1")
     assert developer["grant_scopes"] == []
     assert [c["resources"] for c in developer["connectors"]] == [["platformcon-day-planner"]]
+
+
+def test_tool_scopes_grant_the_board_language_tools():
+    assert tool_scopes(by_slug("product-owner")) == [
+        "mcp:trello:trello_list_cards:use",
+        "mcp:trello:trello_get_card:use",
+        "mcp:trello:trello_update_card_description:use",
+        "mcp:trello:trello_add_checklist:use",
+        "mcp:trello:trello_add_label:use",
+        "mcp:trello:trello_move_card:use",
+        "mcp:trello:trello_comment_card:use",
+    ]
+    lead = tool_scopes(by_slug("delivery-lead"))
+    assert "mcp:trello:trello_add_label:use" in lead
+    assert "mcp:trello:trello_set_priority:use" in lead
+    assert "mcp:trello:trello_check_item:use" in tool_scopes(by_slug("tester"))
+    support = tool_scopes(by_slug("support"))
+    assert "mcp:trello:trello_add_label:use" in support
+    assert "mcp:trello:trello_set_priority:use" in support

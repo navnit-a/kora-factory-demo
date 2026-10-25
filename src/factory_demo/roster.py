@@ -135,7 +135,14 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Turns ideas on the kora factory Trello board into ready user stories with "
         "acceptance criteria, and moves them to Backlog.",
         HAIKU,
-        (*TRELLO_READ, "trello_update_card_description", "trello_move_card", "trello_comment_card"),
+        (
+            *TRELLO_READ,
+            "trello_update_card_description",
+            "trello_add_checklist",
+            "trello_add_label",
+            "trello_move_card",
+            "trello_comment_card",
+        ),
         (),
         None,
         TEAM_RUN_LIMIT_USD,
@@ -149,7 +156,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Keeps two of the most valuable stories in Ready on the kora factory board and posts "
         "the team's stand-up to Telegram.",
         HAIKU,
-        (*TRELLO_WORK, *TELEGRAM),
+        (*TRELLO_WORK, "trello_add_label", "trello_set_priority", *TELEGRAM),
         (),
         None,
         TEAM_RUN_LIMIT_USD,
@@ -212,7 +219,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Checks the card in Testing against every acceptance criterion and green CI, merges "
         "the pull request and announces what shipped.",
         HAIKU,
-        (*TRELLO_WORK, *TELEGRAM),
+        (*TRELLO_WORK, "trello_check_item", *TELEGRAM),
         GITHUB_WRITE,
         NODE_WEB,
         TEAM_RUN_LIMIT_USD,
@@ -226,7 +233,14 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Triages bugs found outside the card in hand and red builds on main, and files each "
         "one as a Bug card in Backlog for the team to fix. Never fixes anything itself.",
         HAIKU,
-        (*TRELLO_READ, "trello_create_card", "trello_comment_card", *TELEGRAM),
+        (
+            *TRELLO_READ,
+            "trello_create_card",
+            "trello_comment_card",
+            "trello_add_label",
+            "trello_set_priority",
+            *TELEGRAM,
+        ),
         GITHUB_READ,
         NODE_WEB,
         TEAM_RUN_LIMIT_USD,

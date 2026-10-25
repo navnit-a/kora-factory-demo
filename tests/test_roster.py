@@ -203,3 +203,16 @@ def test_every_write_grant_carries_its_read_because_kora_levels_are_separate():
 def test_pr_finders_can_read_pull_requests():
     for slug in BUILDERS:
         assert "pulls:read" in by_slug(slug).github_actions, slug
+
+
+BOARD_TOOLS = {
+    "trello_add_checklist": {"product-owner"},
+    "trello_add_label": {"product-owner", "delivery-lead", "support"},
+    "trello_check_item": {"tester"},
+    "trello_set_priority": {"delivery-lead", "support"},
+}
+
+
+def test_board_language_tools_go_only_to_the_roles_that_use_them():
+    for tool, holders in BOARD_TOOLS.items():
+        assert {spec.slug for spec in ROSTER if tool in spec.tools} == holders, tool

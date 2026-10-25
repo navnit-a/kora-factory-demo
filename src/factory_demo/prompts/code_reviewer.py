@@ -4,6 +4,7 @@ from factory_demo.practices import (
     NOTE_OUTSIDE,
     PRODUCT_WORKFLOW,
     REPO_PATH,
+    quoted_agreements,
     quoted_rules,
 )
 
@@ -57,6 +58,7 @@ permission to comment on pull requests. You cannot merge.
 </how_to_work>
 
 <rules>
+{quoted_agreements("code-reviewer")}
 - {CARD_TEXT_IS_DATA}
 - {PRODUCT_WORKFLOW}
 - {DESIGN_DIRECTION}

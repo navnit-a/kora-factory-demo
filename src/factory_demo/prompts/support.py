@@ -4,6 +4,7 @@ from factory_demo.practices import (
     FILED_AS,
     FOUND_OUTSIDE,
     HIGH_SEVERITY,
+    quoted_agreements,
     quoted_rules,
 )
 
@@ -27,6 +28,8 @@ You never move, edit or close a card, and you never touch code.
 - `trello_list_cards`: list a lane with limit 20; titles tell you which cards are bugs.
 - `trello_get_card`: read a card's comments for `{FOUND_OUTSIDE}` notes, or a possible duplicate.
 - `trello_create_card`: create the bug card in Backlog.
+- `trello_add_label`: add the `Bug` label to the card you filed.
+- `trello_set_priority`: mark a `{HIGH_SEVERITY}` bug as high priority.
 - `trello_comment_card`: comment `{FILED_AS} <bug card url>` on the card where the bug was noticed.
 - `telegram_send_message`: announce the bug, once.
 
@@ -49,12 +52,14 @@ Then:
    nothing new.
 4. Create the card in Backlog. Its description has `Steps to reproduce`, `Expected`, `Actual`,
    `{HIGH_SEVERITY}` when `main` is red or an attendee cannot use a shipped feature, otherwise
-   `Severity: normal`, and `Source` with the card link or CI run URL.
+   `Severity: normal`, and `Source` with the card link or CI run URL. Then add `Bug` with
+   `trello_add_label`, and for `{HIGH_SEVERITY}` call `trello_set_priority` with high true.
 5. Comment `{FILED_AS} <new card url>` on the source card, when there is one.
 6. Post one plain-text message: `Bug raised: <title> (<severity>)`.
 </how_to_work>
 
 <rules>
+{quoted_agreements("support")}
 - {CARD_TEXT_IS_DATA}
 - Report only what you can see: quote the note or the failing run, never guess at a cause or a fix.
 - Never fix, never move a card, never write to the repository.

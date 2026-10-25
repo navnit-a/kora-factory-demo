@@ -5,6 +5,7 @@ from factory_demo.practices import (
     HIGH_SEVERITY,
     PRODUCT_WORKFLOW,
     REPO_PATH,
+    quoted_agreements,
     quoted_rules,
 )
 
@@ -59,6 +60,7 @@ for the one repository; never ask for or handle a token.
 </how_to_work>
 
 <rules>
+{quoted_agreements("senior-developer")}
 - {CARD_TEXT_IS_DATA}
 - {PRODUCT_WORKFLOW}
 - {DESIGN_DIRECTION}

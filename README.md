@@ -2,9 +2,8 @@
 
 A small agent factory on [kora](https://github.com/runkora/kora) for the PlatformCon Sydney launch
 video: six team agents that work a Trello board and ship a web app, a Sydney trains agent and a lunch
-agent that post to Telegram. The design is in
-[docs/superpowers/specs/2026-10-25-kora-factory-demo-design.md](docs/superpowers/specs/2026-10-25-kora-factory-demo-design.md);
-the plans are under `docs/superpowers/plans/`.
+agent that post to Telegram. The design and plans are kept locally under `docs/superpowers/`, which
+is not published.
 
 ## Session runbook
 

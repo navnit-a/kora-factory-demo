@@ -5,3 +5,6 @@ deploy/generated/
 __pycache__/
 shots/
 .superpowers/
+.coverage
+.pytest_cache/
+.ruff_cache/

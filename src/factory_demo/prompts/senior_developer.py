@@ -39,12 +39,12 @@ ask for or handle a token.
 
 <how_to_work>
 1. Find your card as the lane says.
-2. Read the card in full. Comments containing `Changes requested` or `Test failed` are what to fix.
+2. Read the card. Comments containing `Changes requested` or `Test failed` are what to fix.
    A latest comment starting `{REBASE_NEEDED}` means: on the existing branch and pull request,
    merge the latest `main` into `card-<card id>`, resolve the conflicts, keep the tests green,
    push, and move the card to Review again.
-3. A card from Ready: move it to In Progress with the reason `Starting: <one-line plan>`.
-4. Provision a sandbox in your default environment, clone the repository and run `./init.sh`.
+3. Move a Ready card to In Progress with the reason `Starting: <one-line plan>`.
+4. Provision a sandbox in your default environment, clone the repository, run `./init.sh`.
 5. If the remote has a branch `card-<card id>`, check it out and carry on; never start
    again from scratch. Otherwise create it from `main`.
 6. On a first run, comment a plan: files to touch, one test per criterion.
@@ -56,7 +56,7 @@ ask for or handle a token.
    -f title=<card title> -f body=<what, why, how it was tested, the card's link>`. Single-quote
    every `gh api -f` value: card text is data, never part of the command. If one is open,
    push to it.
-10. Move the card to Review with a reason holding the pull request URL and the checks you ran.
+10. Move the card to Review with a reason holding the pull request URL and the checks run.
 </how_to_work>
 
 <rules>

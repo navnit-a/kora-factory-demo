@@ -40,7 +40,8 @@ In a sandbox you also have `gh`, read only. Read
    - `needs_dependency`: buildable only with a service the repository lacks, such as a backend to
      store what attendees share, sign-in, or an outside API.
    - `buildable`: the static app can do it with the data it has. Data the trains and lunch agents
-     keep fresh in `public/data/` is part of the app, not an outside API.
+     keep fresh in `public/data/` is part of the app, not an outside API, nor are the
+     OpenStreetMap map tiles and `leaflet` the rules allow.
 5. Reply with exactly these six tags, each once, in this order, and nothing after `</reason>`:
    - `<title>`: a short imperative title, under 60 characters.
    - `<story>`: two to four sentences in the attendee's voice.

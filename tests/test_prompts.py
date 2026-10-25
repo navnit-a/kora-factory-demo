@@ -437,7 +437,7 @@ def test_scout_owner_and_developer_know_the_feeds():
         assert len(text.split()) <= word_cap(slug)
 
 
-def test_feed_facts_name_the_files_parser_map_and_owners():
+def test_feed_facts_give_the_data_contract_and_owners():
     facts = flat(FEED_FACTS)
     for name in (TRAINS_PATH, LUNCH_PATH):
         assert f"`{name}`" in facts, name
@@ -445,6 +445,8 @@ def test_feed_facts_name_the_files_parser_map_and_owners():
         "written only by the trains and lunch agents through their own pull requests",
         "never edit them by hand",
         "exactly three",
+        "`lines` (empty when `normal`) of `line` and `summary`",
+        "`more` (an integer count of further updates)",
         '``fetch(`${import.meta.env.BASE_URL}data/<file>`, { cache: "no-store" })``',
         "validates the shape",
         "Sydney time (24-hour)",
@@ -477,6 +479,7 @@ def test_scout_treats_the_agent_feeds_as_part_of_the_app():
     assert "`public/data/`" in step3
     assert "trains and lunch agents" in step3
     assert "trains and lunch agents" in step4 and "not an outside API" in step4
+    assert "OpenStreetMap map tiles and `leaflet` the rules allow" in step4
 
 
 def test_scout_treats_the_idea_as_data_and_writes_nothing():

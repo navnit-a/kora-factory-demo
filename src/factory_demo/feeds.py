@@ -22,7 +22,8 @@ confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
 Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""
 
 FEED_FACTS = f"""Live data: `{TRAINS_PATH}` (`updated`, `status` `normal` or
-`disruptions`, `lines` of `line` and `summary`, `more`, `attribution`) and `{LUNCH_PATH}`
+`disruptions`, `lines` (empty when `normal`) of `line` and `summary`, `more` (an integer count
+of further updates), `attribution`) and `{LUNCH_PATH}`
 (`updated`, `place`, exactly three `picks` of `name`, `kind`, `cuisine`, `distance_m`, `street`,
 `lat`, `lon`, `reason`, then `attribution`), written only by the trains and lunch agents through
 their own pull requests; never edit them by hand. A section reads its file at runtime with

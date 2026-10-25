@@ -1,0 +1,84 @@
+import asyncio
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+import respx
+from fastmcp import Client
+from fastmcp.exceptions import ToolError
+
+from factory_tools.places import server
+from factory_tools.places.server import ATTRIBUTION, OVERPASS_URL, rank_places
+
+FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "overpass_lunch.json").read_text())
+VENUE = (-33.8776, 151.2048)
+
+
+async def lunch(**arguments) -> dict:
+    async with Client(server.mcp) as client:
+        return (await client.call_tool("places_lunch_nearby", arguments)).data
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def test_rank_places_sorts_by_distance_and_limits():
+    places = rank_places(FIXTURE["elements"], *VENUE, limit=3)
+    assert [p["name"] for p in places] == ["Corner Cafe", "Harbour Noodle", "Spice Lane"]
+    assert places[0] == {
+        "name": "Corner Cafe",
+        "kind": "cafe",
+        "cuisine": "",
+        "distance_m": 35,
+        "street": "Goulburn Street",
+    }
+    assert places[2]["cuisine"] == "thai"
+
+
+def test_rank_skips_nodes_without_a_name():
+    names = [p["name"] for p in rank_places(FIXTURE["elements"], *VENUE, limit=10)]
+    assert len(names) == 4 and "" not in names
+
+
+@respx.mock
+def test_tool_queries_overpass_around_the_point_and_attributes_osm():
+    route = respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=FIXTURE))
+    result = run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+    assert [p["name"] for p in result["places"]] == ["Corner Cafe", "Harbour Noodle", "Spice Lane"]
+    assert result["searched_radius_m"] == 600
+    assert result["attribution"] == ATTRIBUTION == "Data: OpenStreetMap contributors, ODbL"
+    query = dict(httpx.QueryParams(route.calls[0].request.content.decode()))["data"]
+    assert "around:600,-33.8776,151.2048" in query
+    assert query.endswith("out 200;")
+    assert route.calls[0].request.headers["user-agent"].startswith("kora-factory-demo")
+
+
+@respx.mock
+def test_empty_result_says_nothing_within_radius():
+    respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json={"elements": []}))
+    with pytest.raises(ToolError, match="no cafes or restaurants within 600 m"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+
+
+@respx.mock
+def test_overpass_504_suggests_retry_or_smaller_radius():
+    respx.post(OVERPASS_URL).mock(return_value=httpx.Response(504, text="gateway timeout"))
+    with pytest.raises(ToolError, match="retry in a minute or use a smaller radius"):
+        run(lunch(latitude=VENUE[0], longitude=VENUE[1]))
+
+
+def test_latitude_out_of_range_is_rejected():
+    with pytest.raises(ToolError):
+        run(lunch(latitude=91.0, longitude=151.2))
+
+
+def test_tool_is_read_only():
+    async def listed():
+        async with Client(server.mcp) as client:
+            return (await client.list_tools())[0]
+
+    tool = run(listed())
+    assert tool.name == "places_lunch_nearby"
+    assert tool.annotations.read_only_hint is True

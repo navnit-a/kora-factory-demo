@@ -10,10 +10,30 @@
         "content": "<p>Plan ahead.</p>",
         "affected": {
           "lines": [
-            {"id": "t1", "name": "T1 North Shore & Western Line", "product": {"class": 1}},
-            {"id": "t9", "name": "T9 Northern Line", "product": {"class": 1}}
+            {
+              "id": "t1",
+              "name": "Sydney Trains Network T1 North Shore & Western Line",
+              "product": {
+                "class": 1
+              }
+            },
+            {
+              "id": "t9",
+              "name": "Sydney Trains Network T9 Northern Line",
+              "product": {
+                "class": 1
+              }
+            },
+            {
+              "id": "575",
+              "name": "Hornsby to Berowra replacement bus",
+              "product": {
+                "class": 5
+              }
+            }
           ]
-        }
+        },
+        "type": "lineInfo"
       },
       {
         "id": "alert-2",
@@ -21,15 +41,62 @@
         "urlText": "Allow extra travel time on the T4 Line",
         "affected": {
           "lines": [
-            {"id": "t4", "name": "T4 Eastern Suburbs & Illawarra Line", "product": {"class": 1}}
+            {
+              "id": "t4",
+              "name": "Sydney Trains Network T4 Eastern Suburbs & Illawarra Line",
+              "product": {
+                "class": 1
+              }
+            }
           ]
-        }
+        },
+        "type": "lineInfo"
       },
       {
         "id": "alert-3",
         "priority": "normal",
         "subtitle": "Lift out of service at Town Hall",
-        "affected": {"stops": [{"id": "200070", "name": "Town Hall Station"}]}
+        "affected": {
+          "stops": [
+            {
+              "id": "200070",
+              "name": "Town Hall Station"
+            }
+          ]
+        },
+        "type": "lineInfo"
+      },
+      {
+        "id": "trip-1",
+        "type": "tripMessage",
+        "priority": "normal",
+        "subtitle": "Running late",
+        "affected": {
+          "lines": [
+            {
+              "name": "Sydney Trains Network T1 North Shore & Western Line",
+              "product": {
+                "class": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "trip-2",
+        "type": "tripMessage",
+        "priority": "high",
+        "subtitle": "Major delay: signal fault at Strathfield",
+        "affected": {
+          "lines": [
+            {
+              "name": "Sydney Trains Network T2 Leppington & Inner West Line",
+              "product": {
+                "class": 1
+              }
+            }
+          ]
+        }
       }
     ]
   }

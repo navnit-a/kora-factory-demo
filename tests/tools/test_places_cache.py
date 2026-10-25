@@ -7,7 +7,7 @@ NOW = datetime(2026, 10, 25, 9, 0, tzinfo=UTC)
 
 def test_round_trip_marks_when_it_was_stored(tmp_path, monkeypatch):
     monkeypatch.setenv("PLACES_CACHE_DIR", str(tmp_path))
-    key = cache_key(-33.8776, 151.2048, 600, 6)
+    key = cache_key(-33.8781, 151.2077, 600, 6)
     write_cached(key, {"places": [{"name": "Corner Cafe"}]}, NOW)
     assert read_cached(key, NOW + timedelta(hours=1)) == {
         "places": [{"name": "Corner Cafe"}],
@@ -17,7 +17,7 @@ def test_round_trip_marks_when_it_was_stored(tmp_path, monkeypatch):
 
 def test_an_answer_older_than_a_day_is_not_served(tmp_path, monkeypatch):
     monkeypatch.setenv("PLACES_CACHE_DIR", str(tmp_path))
-    key = cache_key(-33.8776, 151.2048, 600, 6)
+    key = cache_key(-33.8781, 151.2077, 600, 6)
     write_cached(key, {"places": []}, NOW)
     assert read_cached(key, NOW + timedelta(hours=25)) is None
 

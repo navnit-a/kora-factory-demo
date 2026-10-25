@@ -12,7 +12,7 @@ SYDNEY = "Australia/Sydney"
 NODE_WEB = "node-web"
 PYTHON_TOOLS = "python-tools"
 RUNS_PER_POD = 3
-MASONIC_CENTRE = ("-33.8776", "151.2048")
+MASONIC_CENTRE = ("-33.8781", "151.2077")
 
 TRELLO_READ = ("trello_list_cards", "trello_get_card")
 TRELLO_WORK = (*TRELLO_READ, "trello_move_card", "trello_comment_card")

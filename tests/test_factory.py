@@ -11,7 +11,7 @@ from factory_demo.factory import (
 from factory_demo.roster import ROSTER
 from tests.fake_kora import FakeKora
 
-NON_GITHUB = {"product-owner", "delivery-lead", "scrum-master", "sydney-trains", "lunch"}
+NON_GITHUB = {"product-owner", "delivery-lead", "scrum-master"}
 
 
 def by_name(kora: FakeKora) -> dict[str, dict]:
@@ -32,16 +32,10 @@ def test_first_deploy_creates_agents_and_triggers_paused():
         "Delivery lead: stand-up now",
         "Scrum master: every 15 min",
         "Scrum master: run now",
-        "Sydney trains: 07:00 weekdays",
-        "Sydney trains: run now",
-        "Lunch: 11:30 weekdays",
-        "Lunch: run now",
     }
     assert triggers["Product owner: every 10 min"]["enabled"] is False
     assert triggers["Delivery lead: stand-up"]["enabled"] is False
-    assert triggers["Sydney trains: 07:00 weekdays"]["enabled"] is True
-    assert triggers["Lunch: run now"]["enabled"] is True
-    assert len(report.created) == len(NON_GITHUB) + 12
+    assert len(report.created) == len(NON_GITHUB) + 8
     assert report.updated == ()
 
 
@@ -51,9 +45,9 @@ def test_deploy_twice_updates_in_place_and_keeps_paused():
     patches_before = len(kora.patches)
     report = deploy_factory(kora, "quiet", include_github=False)
     assert report.created == ()
-    assert len(report.updated) == len(NON_GITHUB) + 12
+    assert len(report.updated) == len(NON_GITHUB) + 8
     assert len(kora.agents) == len(NON_GITHUB)
-    assert len(kora.triggers) == 12
+    assert len(kora.triggers) == 8
     later = kora.patches[patches_before:]
     assert all("enabled" not in patch for _, patch in later)
     assert by_name(kora)["Product owner: every 10 min"]["enabled"] is False
@@ -85,12 +79,14 @@ def test_deploy_refuses_when_an_agents_environment_is_missing():
 def test_github_agents_are_skipped_until_asked():
     kora = FakeKora()
     report = deploy_factory(kora, "quiet", include_github=False)
-    assert len(report.skipped) == 6
+    assert len(report.skipped) == 8
     assert all("--with-github" in line for line in report.skipped)
     deploy_factory(kora, "quiet", include_github=True)
-    assert {"senior-developer", "code-reviewer", "tester", "support", "agent-ops"} <= {
-        a["slug"] for a in kora.agents
-    }
+    github = {"senior-developer", "code-reviewer", "tester", "support", "agent-ops"}
+    assert {*github, "sydney-trains", "lunch"} <= {a["slug"] for a in kora.agents}
+    triggers = by_name(kora)
+    assert triggers["Sydney trains: 07:00 weekdays"]["enabled"] is True
+    assert triggers["Lunch: run now"]["enabled"] is True
 
 
 def test_deploy_waits_for_each_agent_before_its_triggers():
@@ -153,7 +149,7 @@ def test_pause_reports_http_failures_too():
 
 def test_status_lists_schedules_with_cron_and_state():
     kora = FakeKora()
-    deploy_factory(kora, "quiet", include_github=False)
+    deploy_factory(kora, "quiet", include_github=True)
     rows = factory_status(kora)
     assert ("Product owner: every 10 min", "3-59/10 * * * *", False) in rows
     assert ("Lunch: 11:30 weekdays", "30 11 * * 1-5", True) in rows

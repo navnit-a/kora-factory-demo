@@ -353,6 +353,36 @@ def test_lunch_says_when_places_come_from_earlier():
     assert "cached_at" in prompt("lunch")
 
 
+DATA_FILES = (("sydney-trains", "public/data/trains.json"), ("lunch", "public/data/lunch.json"))
+PRIVATE = "never a person's name, a phone number or an address of a person"
+
+
+@pytest.mark.parametrize(("slug", "path"), DATA_FILES)
+def test_data_agent_prompts_publish_after_posting(slug, path):
+    text = prompt(slug)
+    assert text.index("telegram_send_message") < text.index(path)
+    assert "force=true" in text and "-f base=main" in text
+    assert '"attribution"' in text
+    assert PRIVATE in flat(text)
+    assert "pull request open (or refreshed)" in flat(text)
+    assert "the post still counts" in flat(text)
+
+
+@pytest.mark.parametrize(("slug", "path"), DATA_FILES)
+def test_data_agents_never_merge_their_own_pull_request(slug, path):
+    text = prompt(slug)
+    assert "/merge" not in text
+    assert not [command for command in NODE_ID_MUTATIONS if command in text]
+    assert "Never merge" in text
+
+
+def test_lunch_writes_a_data_file_only_from_three_located_places():
+    text = flat(prompt("lunch"))
+    assert "carry both `lat` and `lon`" in text
+    assert "fewer than three" in text
+    assert "write no data file" in text
+
+
 def test_developer_quotes_card_text_in_shell_commands():
     text = " ".join(prompt("senior-developer").split())
     assert "Single-quote every `gh api -f` value" in text

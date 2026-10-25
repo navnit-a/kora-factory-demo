@@ -33,7 +33,7 @@ def recording_notes(kora: FakeKora, calls: list):
 
 def test_status_prints_each_schedule(capsys):
     kora = FakeKora()
-    deploy_factory(kora, "quiet", include_github=False)
+    deploy_factory(kora, "quiet", include_github=True)
     assert factory_command(["status"], kora, no_notes) == 0
     out = capsys.readouterr().out
     assert "paused   3-59/10 * * * *  Product owner: every 10 min" in out
@@ -70,7 +70,7 @@ def test_deploy_command_reports_and_sets_the_cap(capsys):
 
     assert deploy_command([], kora, policy_client, wait=lambda _: None) == 0
     out = capsys.readouterr().out
-    assert "created 17" in out
+    assert "created 11" in out
     assert "skipped: Senior developer" in out
     assert "tenant cap 60.0 USD weekly" in out
     assert policy.cap == {"limit_usd": 60.0, "reset_cadence": "weekly"}

@@ -5,7 +5,9 @@ import pytest
 from factory_demo.roster import (
     CARD_TICK,
     GITHUB_RESOURCE,
+    GITHUB_WRITE,
     HAIKU,
+    PYTHON_TOOLS,
     ROSTER,
     SONNET,
     WATCHED,
@@ -29,12 +31,16 @@ ORDER = (
     "agent-ops",
 )
 BUILDERS = {"senior-developer", "code-reviewer", "tester"}
-GITHUB_AGENTS = {*BUILDERS, "support", "idea-scout", "agent-ops"}
+DATA_AGENTS = {"sydney-trains", "lunch"}
+GITHUB_AGENTS = {*BUILDERS, *DATA_AGENTS, "support", "idea-scout", "agent-ops"}
+SANDBOXED = {*DATA_AGENTS, "agent-ops"}
 SONNET_AGENTS = {"senior-developer", "code-reviewer", "idea-scout", "agent-ops"}
 BUDGETS = {
     "senior-developer": (0.40, 10.0),
     "idea-scout": (0.15, 5.0),
     "agent-ops": (0.40, 5.0),
+    "sydney-trains": (0.30, 3.0),
+    "lunch": (0.30, 3.0),
 }
 WRITE_WORDS = ("move", "comment", "create", "update", "send")
 
@@ -65,9 +71,17 @@ def test_only_the_github_agents_reach_github():
     for spec in ROSTER:
         reaches = bool(spec.github_actions)
         assert reaches == (spec.slug in GITHUB_AGENTS), spec.slug
-        on_node = spec.slug in GITHUB_AGENTS - {"agent-ops"}
+        on_node = spec.slug in GITHUB_AGENTS - SANDBOXED
         assert (spec.environment == "node-web") == on_node, spec.slug
-    assert by_slug("agent-ops").environment == "python-tools"
+        assert (spec.environment == "python-tools") == (spec.slug in SANDBOXED), spec.slug
+
+
+def test_data_agents_hold_a_planner_write_grant_and_a_sandbox():
+    for slug in DATA_AGENTS:
+        spec = by_slug(slug)
+        assert spec.github_actions == GITHUB_WRITE
+        assert spec.environment == PYTHON_TOOLS
+        assert spec.github_resources == (GITHUB_RESOURCE,)
 
 
 def test_only_support_creates_cards():
@@ -87,7 +101,7 @@ def test_only_the_tester_merges():
         for spec in ROSTER
         if "contents:write" in spec.github_actions and GITHUB_RESOURCE in spec.github_resources
     }
-    assert writers == {"senior-developer", "tester"}
+    assert writers == {"senior-developer", "tester", *DATA_AGENTS}
     assert "contents:write" not in by_slug("code-reviewer").github_actions
 
 

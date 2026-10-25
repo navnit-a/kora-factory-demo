@@ -4,7 +4,6 @@ from importlib import import_module
 from factory_demo.practices import OPS_REPO
 from factory_demo.tools_check import PLATFORM_TOOLS
 
-PRODUCT_REPO = "navnit-a/platformcon-day-planner"
 GITHUB_CONNECTION = "github"
 GITHUB_RESOURCE = "platformcon-day-planner"
 HAIKU = "claude-haiku-5-5"
@@ -29,6 +28,7 @@ GITHUB_WRITE = (
 GITHUB_REVIEW = ("contents:read", "pulls:read", "pulls:write", "checks:read", "actions:read")
 GITHUB_READ = ("contents:read", "actions:read", "checks:read")
 TEAM_RUN_LIMIT_USD = 0.20
+DATA_RUN_LIMIT_USD = 0.30
 TEAM_WEEKLY_USD = 3.0
 
 CARD_TICK = (
@@ -263,12 +263,12 @@ ROSTER: tuple[AgentSpec, ...] = (
         "sydney-trains",
         "Sydney trains",
         "Posts the morning Sydney Trains status to the factory's Telegram channel from "
-        "Transport for NSW open data.",
+        "Transport for NSW open data and publishes it to the planner as a data file.",
         HAIKU,
         ("transport_sydney_trains_status", *TELEGRAM),
-        (),
-        None,
-        TEAM_RUN_LIMIT_USD,
+        GITHUB_WRITE,
+        PYTHON_TOOLS,
+        DATA_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
         (
             daily(
@@ -284,12 +284,12 @@ ROSTER: tuple[AgentSpec, ...] = (
         "lunch",
         "Lunch",
         "Suggests three places for lunch near the day's location from OpenStreetMap and posts "
-        "them to the factory's Telegram channel.",
+        "them to the factory's Telegram channel and publishes them to the planner as a data file.",
         HAIKU,
         ("places_lunch_nearby", *TELEGRAM),
-        (),
-        None,
-        TEAM_RUN_LIMIT_USD,
+        GITHUB_WRITE,
+        PYTHON_TOOLS,
+        DATA_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
         (
             daily(

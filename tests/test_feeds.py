@@ -25,3 +25,17 @@ def test_shapes_name_every_field_the_planner_parses():
 
 def test_data_pr_title():
     assert feeds.data_pr_title("trains", "2026-10-27") == "data: trains 2026-10-27"
+
+
+def test_publish_steps_number_under_an_outer_step():
+    steps = feeds.publish_steps(feeds.TRAINS_BRANCH, feeds.TRAINS_PATH, "t", "4.")
+    assert [line.split()[0] for line in steps.splitlines() if line[:1].isdigit()] == [
+        f"4.{n}." for n in range(1, 7)
+    ]
+    assert "\n     `gh api" in steps
+    assert "step 4.3 found no file" in " ".join(steps.split())
+
+
+def test_publish_steps_create_the_branch_only_when_it_is_missing():
+    steps = " ".join(feeds.publish_steps(feeds.LUNCH_BRANCH, feeds.LUNCH_PATH, "t").split())
+    assert "returns 422 'Reference does not exist' or 404" in steps

@@ -53,8 +53,9 @@ First time, or after `make reset`:
 
 13. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
     `src/factory_demo/roster.py`, team schedules paused, and sets the tenant cap to 60 USD a week.
-    The GitHub agents (developer, reviewer, tester, support) are added with `--with-github` once the
-    GitHub App connection exists. Running it again updates in place and keeps paused schedules paused.
+    The GitHub agents (developer, reviewer, tester, support, Sydney trains, lunch) are added with
+    `--with-github` once the GitHub App connection exists. Running it again updates in place and
+    keeps paused schedules paused.
 
 14. GitHub, once: `uv run python scripts/create-github-app.py` opens a page whose button creates the
     private App `kora-factory-navnit-a` on GitHub with contents and pull requests write, checks and
@@ -64,7 +65,7 @@ First time, or after `make reset`:
     and the `github` Connection, and `deploy-factory.py --with-github` adds the GitHub agents.
 
 15. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
-    agent ops runs in, and reports `node-web` as already there. Then
+    agent ops, Sydney trains and lunch run in, and reports `node-web` as already there. Then
     `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
     agent ops schedule paused. Agent ops holds write access to this repository through the GitHub
     App, and this repository is private, so GitHub refuses rulesets on it. Until the repository is

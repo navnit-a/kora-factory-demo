@@ -1,3 +1,5 @@
+import pytest
+
 from factory_demo.factory_requests import (
     agent_patch,
     agent_request,
@@ -44,6 +46,27 @@ def test_developer_request_has_github_connector_on_one_repo():
     assert request["identity_mode"] == "autonomous"
     assert request["system_prompt"] == prompt("senior-developer")
     assert request["max_concurrent_runs_per_pod"] == 3
+
+
+@pytest.mark.parametrize("slug", ["sydney-trains", "lunch"])
+def test_data_agent_request_writes_to_the_planner_from_the_sandbox(slug):
+    request = agent_request(by_slug(slug), "anthropic/claude-haiku-5-5", "e-2")
+    assert request["connectors"] == [
+        {
+            "connection": "github",
+            "actions": [
+                "contents:read",
+                "contents:write",
+                "pulls:read",
+                "pulls:write",
+                "checks:read",
+                "actions:read",
+            ],
+            "resources": ["platformcon-day-planner"],
+        }
+    ]
+    assert request["environments"] == [{"environment_id": "e-2", "is_default": True}]
+    assert request["budget"]["per_run_limit_usd"] == 0.30
 
 
 def test_product_owner_request_has_no_connector_and_no_environment():

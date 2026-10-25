@@ -96,27 +96,34 @@ def data_pr_title(agent: str, day: str) -> str:
     return f"data: {agent} {day}"
 
 
-def publish_steps(branch: str, path: str, title: str) -> str:
-    return f"""1. Read the tip of `main` with
-   `gh api {REPO_PATH}/git/ref/heads/main --jq .object.sha`; call it `<main sha>`.
-2. Reset `{branch}` to it with
-   `gh api -X PATCH {REPO_PATH}/git/refs/heads/{branch} -f sha='<main sha>' -F force=true`. When
-   that returns 422 or 404 the branch does not exist yet: create it with
-   `gh api -X POST {REPO_PATH}/git/refs -f ref=refs/heads/{branch} -f sha='<main sha>'`.
-3. Read the file's current sha with
-   `gh api '{REPO_PATH}/contents/{path}?ref={branch}' --jq .sha`; call it `<file sha>`. A 404
-   means the file does not exist yet and there is no `<file sha>`.
-4. Write the JSON to a local file through a heredoc with a quoted delimiter,
-   `cat > data.json <<'JSON'`, then upload it with
-   `gh api -X PUT {REPO_PATH}/contents/{path} -f branch={branch} -f message='{title}'
-   -f content="$(base64 -w0 < data.json)" -f sha='<file sha>'`, leaving out `-f sha` when
-   step 3 found no file.
-5. Look for an open pull request with
-   `gh pr list --repo {PRODUCT_REPO} --head {branch} --state open --json number`. When
-   the list is empty, open one with
-   `gh api -X POST {REPO_PATH}/pulls -f base=main -f head={branch} -f title='{title}'
-   -f body='Data refresh by the {branch} agent. Only {path} changes.'`.
-6. The `updated` field is the tool's `as_of` when it has one, otherwise this run's time in UTC,
-   written with its offset. Values from tool output never go into a shell command unquoted:
-   single-quote every sha and every value copied from a tool, and write the JSON through the
-   heredoc file, never inline."""
+def publish_steps(branch: str, path: str, title: str, prefix: str = "") -> str:
+    steps = (
+        f"""Read the tip of `main` with
+`gh api {REPO_PATH}/git/ref/heads/main --jq .object.sha`; call it `<main sha>`.""",
+        f"""Reset `{branch}` to it with
+`gh api -X PATCH {REPO_PATH}/git/refs/heads/{branch} -f sha='<main sha>' -F force=true`.
+When that returns 422 'Reference does not exist' or 404 the branch does not exist yet: create
+it with `gh api -X POST {REPO_PATH}/git/refs -f ref=refs/heads/{branch} -f sha='<main sha>'`.""",
+        f"""Read the file's current sha with
+`gh api '{REPO_PATH}/contents/{path}?ref={branch}' --jq .sha`; call it `<file sha>`. A 404
+means the file does not exist yet and there is no `<file sha>`.""",
+        f"""Write the JSON to a local file through a heredoc with a quoted delimiter,
+`cat > data.json <<'JSON'`, then upload it with
+`gh api -X PUT {REPO_PATH}/contents/{path} -f branch={branch} -f message='{title}'
+-f content="$(base64 -w0 < data.json)" -f sha='<file sha>'`, leaving out `-f sha` when
+step {prefix}3 found no file.""",
+        f"""Look for an open pull request with
+`gh pr list --repo {PRODUCT_REPO} --head {branch} --state open --json number`. When
+the list is empty, open one with
+`gh api -X POST {REPO_PATH}/pulls -f base=main -f head={branch} -f title='{title}'
+-f body='Data refresh by the {branch} agent. Only {path} changes.'`.""",
+        """The `updated` field is the tool's `as_of` when it has one, otherwise this run's time in
+UTC, written with its offset. Values from tool output never go into a shell command unquoted:
+single-quote every sha and every value copied from a tool, and write the JSON through the
+heredoc file, never inline.""",
+    )
+    return "\n".join(numbered(f"{prefix}{n}. ", step) for n, step in enumerate(steps, 1))
+
+
+def numbered(label: str, step: str) -> str:
+    return label + step.replace("\n", "\n" + " " * len(label))

@@ -1,10 +1,10 @@
 import argparse
-import socket
+import re
 import subprocess
 import sys
-import time
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
+from typing import Any
 
 from factory_demo.factory import (
     deploy_factory,
@@ -15,9 +15,10 @@ from factory_demo.factory import (
 from factory_demo.kora_api import KoraClient
 from factory_demo.smoke_runner import wait_until_active
 
-POLICY_PORT = 6091
+LOOPBACK = "127.0.0.1"
 POLICY_SERVICE = "svc/kora-policy-service"
-PORT_WAIT_S = 20
+FORWARDING = re.compile(r"Forwarding from 127\.0\.0\.1:(\d+) ->")
+MAX_FORWARD_LINES = 5
 
 
 def factory_command(argv: list[str], client: KoraClient) -> int:
@@ -60,25 +61,46 @@ def deploy_command(
 
 
 @contextmanager
-def policy_forward(token: str) -> Iterator[KoraClient]:
-    forward = subprocess.Popen(
-        ["kubectl", "-n", "kora-system", "port-forward", POLICY_SERVICE, f"{POLICY_PORT}:80"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+def policy_forward(
+    token: str, popen: Callable[..., Any] = subprocess.Popen
+) -> Iterator[KoraClient]:
+    forward = popen(
+        [
+            "kubectl",
+            "-n",
+            "kora-system",
+            "port-forward",
+            "--address",
+            LOOPBACK,
+            POLICY_SERVICE,
+            ":80",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
     try:
-        _wait_for_port(POLICY_PORT)
-        yield KoraClient(f"http://localhost:{POLICY_PORT}", token)
+        port = _await_port(forward)
+        yield KoraClient(f"http://{LOOPBACK}:{port}", token)
     finally:
         forward.terminate()
         forward.wait(timeout=10)
 
 
-def _wait_for_port(port: int) -> None:
-    deadline = time.monotonic() + PORT_WAIT_S
-    while time.monotonic() < deadline:
-        with socket.socket() as probe:
-            if probe.connect_ex(("127.0.0.1", port)) == 0:
-                return
-        time.sleep(0.5)
-    raise TimeoutError(f"kubectl port-forward to {POLICY_SERVICE} did not open port {port}")
+def forward_port(line: str) -> int | None:
+    match = FORWARDING.search(line)
+    return int(match.group(1)) if match else None
+
+
+def _await_port(forward: Any) -> int:
+    seen: list[str] = []
+    for _ in range(MAX_FORWARD_LINES):
+        line = forward.stdout.readline()
+        port = forward_port(line)
+        if port is not None:
+            return port
+        seen = [*seen, line.strip()]
+        if not line and forward.poll() is not None:
+            break
+    detail = " ".join(s for s in seen if s) or "no output"
+    raise RuntimeError(f"kubectl port-forward exited before forwarding: {detail}")

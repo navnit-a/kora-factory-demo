@@ -4,7 +4,8 @@ A small agent factory on [kora](https://github.com/runkora/kora) for the Platfor
 video: six team agents that work a Trello board and ship a web app, a Sydney trains agent and a lunch
 agent that post to Telegram. The design and plans are kept locally under `docs/superpowers/`, which
 is not published. The rules every agent and tool follows are in
-[docs/agent-practices.md](docs/agent-practices.md).
+[docs/agent-practices.md](docs/agent-practices.md), and the team's delivery rules in
+[docs/sdlc-practices.md](docs/sdlc-practices.md).
 
 ## Session runbook
 

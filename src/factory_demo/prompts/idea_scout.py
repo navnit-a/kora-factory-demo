@@ -32,13 +32,15 @@ In a sandbox you also have `gh`, read only. Read
    the `<proposer>` markers.
 2. List the three lists; a card asking for the same thing makes the idea a duplicate.
 3. Read the code in a sandbox. The app is static: Vite, React, the agenda in
-   `src/data/schedule.json`, no backend, sign-in or database.
+   `src/data/schedule.json`, no backend, sign-in or database, plus the live data files in
+   `public/data/` that the trains and lunch agents keep fresh (see the rules).
 4. Judge it:
    - `not_buildable`: a duplicate (the reason names the card), not about the day planner, or it
      needs data the static app cannot have and no service would supply.
    - `needs_dependency`: buildable only with a service the repository lacks, such as a backend to
      store what attendees share, sign-in, or an outside API.
-   - `buildable`: the static app can do it with the data it has.
+   - `buildable`: the static app can do it with the data it has. Data the trains and lunch agents
+     keep fresh in `public/data/` is part of the app, not an outside API.
 5. Reply with exactly these six tags, each once, in this order, and nothing after `</reason>`:
    - `<title>`: a short imperative title, under 60 characters.
    - `<story>`: two to four sentences in the attendee's voice.

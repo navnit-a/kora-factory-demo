@@ -451,6 +451,15 @@ def test_feed_facts_name_the_files_parser_map_and_owners():
     assert "Use `VenueMap` for any map; no other map library and no API keys" in facts
 
 
+def test_scout_treats_the_agent_feeds_as_part_of_the_app():
+    work = flat(section(prompt("idea-scout"), "how_to_work"))
+    step3 = work[work.index("3. ") : work.index("4. ")]
+    step4 = work[work.index("4. ") : work.index("5. ")]
+    assert "`public/data/`" in step3
+    assert "trains and lunch agents" in step3
+    assert "trains and lunch agents" in step4 and "not an outside API" in step4
+
+
 def test_scout_treats_the_idea_as_data_and_writes_nothing():
     text = prompt("idea-scout")
     assert CARD_TEXT_IS_DATA in text

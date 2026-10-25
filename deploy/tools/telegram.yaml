@@ -32,7 +32,7 @@ spec:
               containerPort: 8000
           envFrom:
             - secretRef:
-                name: factory-tools
+                name: tools-telegram
           readinessProbe:
             tcpSocket:
               port: 8000

@@ -7,18 +7,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from factory_demo.secrets import read_env, render_secret  # noqa: E402
 
 PROVIDER_LABEL = {"runkora.io/inference-provider": "true"}
-TOOL_KEYS = (
-    "TRELLO_API_KEY",
-    "TRELLO_TOKEN",
-    "TRELLO_BOARD_ID",
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_CHAT_ID",
-    "TELEGRAM_CHANNEL",
-    "TFNSW_API_KEY",
-)
+TENANT = "kora-tenant-example"
+TOOL_SECRETS = {
+    "tools-trello": ("TRELLO_API_KEY", "TRELLO_TOKEN", "TRELLO_BOARD_ID"),
+    "tools-telegram": ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHANNEL"),
+    "tools-transport": ("TFNSW_API_KEY",),
+}
 SECRETS = (
     ("azure-ailabs", "kora-system", {"apiKey": "AILABS_FOUNDRY_API_KEY"}, PROVIDER_LABEL),
-    ("factory-tools", "kora-tenant-example", {k: k for k in TOOL_KEYS}, {}),
+    *((name, TENANT, {k: k for k in keys}, {}) for name, keys in TOOL_SECRETS.items()),
 )
 
 

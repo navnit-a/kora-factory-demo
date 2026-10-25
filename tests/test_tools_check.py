@@ -38,3 +38,17 @@ def test_missing_tools_is_empty_when_all_nine_are_listed():
         "places": ["places_lunch_nearby"],
     }
     assert missing_tools(listed) == []
+
+
+def test_each_deployment_reads_only_its_own_secret_and_places_reads_none():
+    from pathlib import Path
+
+    import yaml
+
+    root = Path(__file__).resolve().parents[1] / "deploy" / "tools"
+    for name in ("trello", "telegram", "transport", "places"):
+        docs = [d for d in yaml.safe_load_all((root / f"{name}.yaml").read_text()) if d]
+        deployment = next(d for d in docs if d["kind"] == "Deployment")
+        container = deployment["spec"]["template"]["spec"]["containers"][0]
+        refs = [e["secretRef"]["name"] for e in container.get("envFrom", [])]
+        assert refs == ([] if name == "places" else [f"tools-{name}"])

@@ -32,7 +32,7 @@ spec:
               containerPort: 8000
           envFrom:
             - secretRef:
-                name: factory-tools
+                name: tools-transport
           readinessProbe:
             tcpSocket:
               port: 8000

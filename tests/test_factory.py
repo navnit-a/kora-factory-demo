@@ -85,7 +85,8 @@ def test_github_agents_are_skipped_until_asked():
     github = {"senior-developer", "code-reviewer", "tester", "support", "agent-ops"}
     assert {*github, "sydney-trains", "lunch"} <= {a["slug"] for a in kora.agents}
     triggers = by_name(kora)
-    assert triggers["Sydney trains: 07:00 weekdays"]["enabled"] is True
+    assert triggers["Sydney trains: 07:00 weekdays"]["enabled"] is False
+    assert triggers["Lunch: 11:30 weekdays"]["enabled"] is False
     assert triggers["Lunch: run now"]["enabled"] is True
 
 
@@ -109,12 +110,11 @@ def test_resume_switches_cadence_and_enables_team_schedules_only():
     developer = triggers["Senior developer: every 5 min"]
     assert developer["enabled"] is True
     assert developer["schedule_config"]["cron_expression"] == "*/5 * * * *"
-    trains_patches = [
-        p for tid, p in kora.patches if tid == triggers["Sydney trains: 07:00 weekdays"]["id"]
-    ]
-    assert trains_patches == []
+    assert triggers["Sydney trains: 07:00 weekdays"]["enabled"] is True
+    assert triggers["Lunch: 11:30 weekdays"]["enabled"] is True
     assert set_team_schedules(kora, False, "quiet") == ()
     assert by_name(kora)["Senior developer: every 5 min"]["enabled"] is False
+    assert by_name(kora)["Sydney trains: 07:00 weekdays"]["enabled"] is False
     assert by_name(kora)["Senior developer: every 5 min"]["schedule_config"]["cron_expression"] == (
         "*/15 * * * *"
     )
@@ -152,7 +152,7 @@ def test_status_lists_schedules_with_cron_and_state():
     deploy_factory(kora, "quiet", include_github=True)
     rows = factory_status(kora)
     assert ("Product owner: every 10 min", "3-59/10 * * * *", False) in rows
-    assert ("Lunch: 11:30 weekdays", "30 11 * * 1-5", True) in rows
+    assert ("Lunch: 11:30 weekdays", "30 11 * * 1-5", False) in rows
     assert all(not name.endswith("run now") for name, _, _ in rows)
 
 

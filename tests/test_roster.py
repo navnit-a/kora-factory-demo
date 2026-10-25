@@ -4,8 +4,8 @@ import pytest
 
 from factory_demo.roster import (
     CARD_TICK,
+    GITHUB_DATA,
     GITHUB_RESOURCE,
-    GITHUB_WRITE,
     HAIKU,
     PYTHON_TOOLS,
     ROSTER,
@@ -79,7 +79,8 @@ def test_only_the_github_agents_reach_github():
 def test_data_agents_hold_a_planner_write_grant_and_a_sandbox():
     for slug in DATA_AGENTS:
         spec = by_slug(slug)
-        assert spec.github_actions == GITHUB_WRITE
+        assert spec.github_actions == GITHUB_DATA
+        assert not {"checks:read", "actions:read"} & set(spec.github_actions)
         assert spec.environment == PYTHON_TOOLS
         assert spec.github_resources == (GITHUB_RESOURCE,)
 
@@ -162,10 +163,15 @@ def test_no_two_team_agents_start_on_the_same_minute_at_recording_cadence():
         assert not slugs >= BUILDERS, minute
 
 
-def test_only_team_schedules_pause_with_the_session():
+def test_every_schedule_pauses_with_the_session():
     for spec in ROSTER:
-        everyday = spec.slug in {"sydney-trains", "lunch"}
-        assert all(s.team is not everyday for s in spec.schedules), spec.slug
+        assert all(s.team for s in spec.schedules), spec.slug
+
+
+def test_write_capable_agents_have_only_team_schedules():
+    for spec in ROSTER:
+        if spec.github_actions:
+            assert all(s.team for s in spec.schedules), spec.slug
 
 
 def test_every_tick_carries_the_time():

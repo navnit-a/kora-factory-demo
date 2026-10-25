@@ -66,9 +66,9 @@ First time, or after `make reset`:
 
 15. `uv run python scripts/create-environment.py` again creates the `python-tools` sandbox environment
     agent ops, Sydney trains and lunch run in, and reports `node-web` as already there. Then
-    `uv run python scripts/deploy-factory.py --with-github` adds the idea scout and agent ops, the
-    agent ops schedule paused. Agent ops holds write access to this repository through the GitHub
-    App, and this repository is private, so GitHub refuses rulesets on it. Until the repository is
+    `uv run python scripts/deploy-factory.py --with-github` adds the idea scout, agent ops, Sydney
+    trains and lunch, their schedules paused. Agent ops holds write access to this repository
+    through the GitHub App, and this repository is private, so GitHub refuses rulesets on it. Until the repository is
     public or has rulesets, do not add `kora-factory-demo` to the App installation: without it
     GitHub mints no token for this repository and agent ops cannot push, which is the guard.
 
@@ -84,8 +84,8 @@ First time, or after `make reset`:
 Every later session: `scripts/session-start.sh` (Docker check, `make up`, sign-in, platform check,
 factory status), then `uv run python scripts/factory.py resume --cadence recording` to start the
 team. `scripts/session-stop.sh` pauses every team schedule and fails loudly if any is still running;
-add `--down` to stop the cluster. The trains and lunch schedules stay on; every agent also has a
-"run now" trigger in the console, and the delivery lead a "stand-up now".
+add `--down` to stop the cluster. The trains and lunch schedules pause and resume with the team;
+every agent also has a "run now" trigger in the console, and the delivery lead a "stand-up now".
 
 Dashboard: https://local.runkora.io, sign in as `dev@local.runkora.io`. API: https://api.local.runkora.io.
 The local TLS certificate comes from mkcert; the API client verifies against `$(mkcert -CAROOT)/rootCA.pem`

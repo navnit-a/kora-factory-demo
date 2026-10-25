@@ -54,14 +54,7 @@ def test_data_agent_request_writes_to_the_planner_from_the_sandbox(slug):
     assert request["connectors"] == [
         {
             "connection": "github",
-            "actions": [
-                "contents:read",
-                "contents:write",
-                "pulls:read",
-                "pulls:write",
-                "checks:read",
-                "actions:read",
-            ],
+            "actions": ["contents:read", "contents:write", "pulls:read", "pulls:write"],
             "resources": ["platformcon-day-planner"],
         }
     ]

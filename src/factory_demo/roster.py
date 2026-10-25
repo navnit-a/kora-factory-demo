@@ -25,6 +25,7 @@ GITHUB_WRITE = (
     "checks:read",
     "actions:read",
 )
+GITHUB_DATA = ("contents:read", "contents:write", "pulls:read", "pulls:write")
 GITHUB_REVIEW = ("contents:read", "pulls:read", "pulls:write", "checks:read", "actions:read")
 GITHUB_READ = ("contents:read", "actions:read", "checks:read")
 TEAM_RUN_LIMIT_USD = 0.20
@@ -266,7 +267,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         "Transport for NSW open data and publishes it to the planner as a data file.",
         HAIKU,
         ("transport_sydney_trains_status", *TELEGRAM),
-        GITHUB_WRITE,
+        GITHUB_DATA,
         PYTHON_TOOLS,
         DATA_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
@@ -275,7 +276,7 @@ ROSTER: tuple[AgentSpec, ...] = (
                 "07:00 weekdays",
                 "0 7 * * 1-5",
                 "Morning check at {{ var.datetime }} UTC. Post today's Sydney Trains status.",
-                False,
+                True,
             ),
         ),
         (Manual("run now", "Run started by hand. Post the current Sydney Trains status."),),
@@ -287,7 +288,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         "them to the factory's Telegram channel and publishes them to the planner as a data file.",
         HAIKU,
         ("places_lunch_nearby", *TELEGRAM),
-        GITHUB_WRITE,
+        GITHUB_DATA,
         PYTHON_TOOLS,
         DATA_RUN_LIMIT_USD,
         TEAM_WEEKLY_USD,
@@ -297,7 +298,7 @@ ROSTER: tuple[AgentSpec, ...] = (
                 "30 11 * * 1-5",
                 "Lunch check at {{ var.datetime }} UTC. Suggest lunch near Sydney Masonic Centre, "
                 f"latitude {MASONIC_CENTRE[0]}, longitude {MASONIC_CENTRE[1]}.",
-                False,
+                True,
             ),
         ),
         (

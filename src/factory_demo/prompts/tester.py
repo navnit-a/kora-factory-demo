@@ -3,6 +3,7 @@ from factory_demo.practices import (
     DESIGN_DIRECTION,
     NOTE_OUTSIDE,
     PRODUCT_WORKFLOW,
+    REPO_PATH,
     quoted_rules,
 )
 
@@ -46,8 +47,10 @@ in the one repository.
    `npm test -- --run` and `npm run build`.
 5. For each acceptance criterion, find the test that shows it and read it. A criterion with no test
    that shows it, or whose test fails, is a failed criterion.
-6. All criteria hold: `gh pr merge --squash --delete-branch`, confirm with `gh pr view` that it is
-   merged, move the card to Done with a reason listing each criterion checked, and post one
+6. All criteria hold: merge with
+   `gh api -X PUT {REPO_PATH}/pulls/<number>/merge -f merge_method=squash`, delete the branch with
+   `gh api -X DELETE {REPO_PATH}/git/refs/heads/card-<card id>`, confirm with `gh pr view` that it
+   is merged, move the card to Done with a reason listing each criterion checked, and post one
    plain-text message:
    `Shipped: <card title>. <one line on what attendees get>. <pull request URL>`.
 7. A failed criterion: move the card to In Progress with a reason starting `Test failed` that names

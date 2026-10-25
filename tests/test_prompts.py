@@ -110,12 +110,30 @@ def test_reviewer_bounces_twice_then_blocks():
     assert "two `Changes requested`" in prompt("code-reviewer")
 
 
+REPO_API = "gh api -X {verb} repos/navnit-a/platformcon-day-planner/"
+NODE_ID_MUTATIONS = ("gh pr create", "gh pr review", "gh pr merge", "gh pr comment", "gh pr edit")
+
+
+@pytest.mark.parametrize("slug", TEAM)
+def test_github_writes_use_repo_scoped_rest_not_graphql_mutations(slug):
+    text = prompt(slug)
+    assert not [command for command in NODE_ID_MUTATIONS if command in text]
+
+
+def test_developer_opens_the_pull_request_through_rest():
+    text = prompt("senior-developer")
+    assert REPO_API.format(verb="POST") + "pulls -f base=main -f head=card-<card id>" in text
+
+
 def test_reviewer_comments_rather_than_approves():
-    assert "gh pr review --comment" in prompt("code-reviewer")
+    text = prompt("code-reviewer")
+    assert REPO_API.format(verb="POST") + "pulls/<number>/reviews -f event=COMMENT" in text
 
 
-def test_tester_merges_with_squash():
-    assert "gh pr merge --squash --delete-branch" in prompt("tester")
+def test_tester_merges_with_squash_and_deletes_the_branch():
+    text = prompt("tester")
+    assert REPO_API.format(verb="PUT") + "pulls/<number>/merge -f merge_method=squash" in text
+    assert REPO_API.format(verb="DELETE") + "git/refs/heads/card-<card id>" in text
 
 
 @pytest.mark.parametrize("slug", TEAM)

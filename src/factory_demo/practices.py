@@ -139,6 +139,7 @@ RULES_BY_ROLE: dict[str, tuple[int, ...]] = {
     "tester": (*TEAM_BASE, 20, 21, 22, *DESIGN_RULES),
     "support": (*TEAM_BASE, 22),
 }
+REPO_PATH = "repos/navnit-a/platformcon-day-planner"
 FOUND_OUTSIDE = "Found outside this card:"
 FILED_AS = "Filed as"
 BUG_PREFIX = "Bug:"

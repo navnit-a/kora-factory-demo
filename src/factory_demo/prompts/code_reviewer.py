@@ -3,6 +3,7 @@ from factory_demo.practices import (
     DESIGN_DIRECTION,
     NOTE_OUTSIDE,
     PRODUCT_WORKFLOW,
+    REPO_PATH,
     quoted_rules,
 )
 
@@ -45,11 +46,13 @@ permission to comment on pull requests. You cannot merge.
    acceptance criterion including the edge cases, are the tests real and do they test behaviour, is
    it readable. Check the UI against the design direction below.
 6. Run `npm test -- --run`, `npm run lint` and `npm run build`.
-7. Approve: post `gh pr review --comment` on the pull request with `Approved:` and what you
-   checked (one GitHub identity cannot approve its own pull request, so a comment is the
-   approval), then move the card to Testing with a reason that summarises the review.
-8. Request changes: post each change on the pull request with `gh pr review --comment`, saying what
-   is wrong, why, and what would fix it. Post the same list on the card as a comment starting
+7. Approve: post a review,
+   `gh api -X POST {REPO_PATH}/pulls/<number>/reviews -f event=COMMENT -f body=<review>`, whose
+   body starts `Approved:` and says what you checked (one GitHub identity cannot approve its own
+   pull request, so a comment is the approval), then move the card to Testing with a reason that
+   summarises the review.
+8. Request changes: post each change in one review the same way, saying what is wrong, why, and
+   what would fix it. Post the same list on the card as a comment starting
    `Changes requested`, then move the card to In Progress.
 </how_to_work>
 

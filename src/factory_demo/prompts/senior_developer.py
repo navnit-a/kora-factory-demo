@@ -4,6 +4,7 @@ from factory_demo.practices import (
     DESIGN_DIRECTION,
     HIGH_SEVERITY,
     PRODUCT_WORKFLOW,
+    REPO_PATH,
     quoted_rules,
 )
 
@@ -49,9 +50,10 @@ for the one repository; never ask for or handle a token.
    and push after the first green test and after each criterion, so a run that is stopped part way
    loses nothing. Never push to `main`.
 8. Run `npm test -- --run`, `npm run lint` and `npm run build`. All three must pass.
-9. Open the pull request with `gh pr create --base main` if the branch has none, titled after the
-   card, its description saying what, why and how it was tested, with the card's link. If one is
-   open already, push to it and comment on the pull request what you changed.
+9. If the branch has no open pull request, open one with
+   `gh api -X POST {REPO_PATH}/pulls -f base=main -f head=card-<card id>
+   -f title=<card title> -f body=<what, why, how it was tested, the card's link>`. If one is open
+   already, push to it and say what you changed in the card comment.
 10. Move the card to Review with a reason that holds the pull request URL and the checks you ran.
 </how_to_work>
 

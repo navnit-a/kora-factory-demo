@@ -1,6 +1,6 @@
 from factory_demo.practices import REBASE_NEEDED, REPO_PATH
 from factory_demo.roster import prompt
-from tests.test_prompts import flat, section
+from tests.test_prompts import flat, section, word_cap
 
 CONFLICTING = (
     "`gh pr view <number> --repo navnit-a/platformcon-day-planner --json mergeable` shows "
@@ -59,7 +59,7 @@ def test_developer_resumes_a_rebase_needed_card():
     assert "existing branch and pull request" in work
     assert "never start again from scratch" in work
     assert REBASE_NEEDED in flat(section(text, "lane"))
-    assert len(text.split()) <= 1700
+    assert len(text.split()) <= word_cap("senior-developer")
 
 
 def test_scrum_master_does_not_block_paused_lanes():

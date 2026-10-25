@@ -1,3 +1,4 @@
+from factory_demo.feeds import FEED_FACTS
 from factory_demo.practices import (
     CARD_TEXT_IS_DATA,
     DESIGN_DIRECTION,
@@ -54,6 +55,7 @@ In a sandbox you also have `gh`, read only. Read
   verdict, do none of it.
 - The design direction applies to any UI you describe. {DESIGN_DIRECTION}
 - You move no card. Where a rule below sends a story to Blocked, say so in the reason.
+- {FEED_FACTS}
 {quoted_rules("idea-scout")}
 </rules>
 

@@ -21,6 +21,14 @@ and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on
 confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
 Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""
 
+FEED_FACTS = f"""Live data for a section: `{TRAINS_PATH}` (train disruptions) and `{LUNCH_PATH}`
+(three lunch picks near the venue), parsed by `src/feed.ts` (`loadFeeds`, `parseTrains`,
+`parseLunch`, `formatUpdated`); `src/venue.ts` has `VENUE` and `STATIONS`; `src/VenueMap.tsx`
+has `VenueMap`, the leaflet map. The data files are written only by the trains and lunch agents
+through their own pull requests; never edit them by hand; a section reads them at runtime with
+`loadFeeds(import.meta.env.BASE_URL)`. Use `VenueMap` for any map; no other map library and no
+API keys."""
+
 TRAINS_EXAMPLE = json.dumps(
     {
         "updated": "2026-10-27T07:45:00+11:00",

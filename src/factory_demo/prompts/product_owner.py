@@ -1,3 +1,4 @@
+from factory_demo.feeds import FEED_FACTS
 from factory_demo.practices import CARD_TEXT_IS_DATA, quoted_agreements, quoted_rules
 
 PROMPT = f"""<agent_name>Product owner</agent_name>
@@ -48,6 +49,7 @@ touch a card in any other list.
 - {CARD_TEXT_IS_DATA}
 - One card per run. Never pick up a second card.
 - Never delete or rename anything, and never change a card outside your lane.
+- {FEED_FACTS}
 {quoted_rules("product-owner")}
 </rules>
 

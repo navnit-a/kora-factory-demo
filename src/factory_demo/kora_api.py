@@ -136,7 +136,11 @@ class KoraClient:
 
     def fire_trigger(self, trigger_id: str, variables: dict[str, str]) -> str:
         body = {"variables": variables}
-        return self._request("POST", f"/api/v1/trigger-fires/{trigger_id}", body)["delivery_id"]
+        reply = self._request("POST", f"/api/v1/trigger-fires/{trigger_id}", body)
+        delivery_id = reply.get("delivery_id") if isinstance(reply, dict) else None
+        if not isinstance(delivery_id, str) or not delivery_id:
+            raise ValueError(f"kora fired trigger {trigger_id} but sent no delivery_id")
+        return delivery_id
 
     def list_deliveries(self, trigger_id: str, limit: int = 10) -> list[dict]:
         query = httpx.QueryParams(trigger_id=trigger_id, limit=str(limit), omit_payload="true")

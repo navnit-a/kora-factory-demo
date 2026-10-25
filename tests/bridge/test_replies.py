@@ -69,6 +69,11 @@ def test_added_links_the_card():
     assert "https://trello.com/c/abc" in replies.added("https://trello.com/c/abc")
 
 
+def test_card_failed_keeps_the_proposal_and_asks_for_yes_again():
+    text = replies.card_failed()
+    assert "kept" in text and "yes" in text
+
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -81,6 +86,7 @@ def test_added_links_the_card():
         replies.bad_text(),
         replies.scout_failed(),
         replies.not_buildable_yes(),
+        replies.card_failed(),
     ],
 )
 def test_every_reply_is_plain_and_fits_one_message(text):

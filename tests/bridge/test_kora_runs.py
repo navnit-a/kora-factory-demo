@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from factory_bridge.kora_runs import POLL_S, SCOUT_TIMEOUT_S, ScoutRunner, final_text
+from factory_bridge.kora_runs import POLL_S, SCOUT_TIMEOUT_S, SETTLED, ScoutRunner, final_text
 from factory_demo.kora_api import KoraClient
 
 BASE = "https://api.local.runkora.io"
@@ -132,8 +132,13 @@ def test_scout_runner_times_out_on_a_run_that_never_settles():
         runner(FakeTime()).run("idea text", "Ana")
 
 
+@pytest.mark.parametrize("state", ["error", "terminated", "completing", "pending"])
+def test_states_kora_does_not_settle_on_are_not_settled(state):
+    assert state not in SETTLED
+
+
 @respx.mock
-@pytest.mark.parametrize("state", ["failed", "error", "terminated"])
+@pytest.mark.parametrize("state", ["failed", "budget_exhausted"])
 def test_scout_runner_names_a_failed_run(state):
     respx.post(f"{BASE}/api/v1/trigger-fires/{TRIGGER}").mock(
         return_value=httpx.Response(202, json={"delivery_id": "d-1"})
@@ -146,3 +151,21 @@ def test_scout_runner_names_a_failed_run(state):
     )
     with pytest.raises(RuntimeError, match=state):
         runner(FakeTime()).run("idea text", "Ana")
+
+
+@respx.mock
+def test_budget_exhausted_settles_at_once():
+    respx.post(f"{BASE}/api/v1/trigger-fires/{TRIGGER}").mock(
+        return_value=httpx.Response(202, json={"delivery_id": "d-1"})
+    )
+    respx.get(f"{BASE}/api/v1/trigger-deliveries").mock(
+        return_value=deliveries({"id": "d-1", "run_id": "r-1"})
+    )
+    run = respx.get(f"{BASE}/api/v1/runs/r-1").mock(
+        return_value=httpx.Response(200, json={"id": "r-1", "state": "budget_exhausted"})
+    )
+    fake = FakeTime()
+    with pytest.raises(RuntimeError, match="budget_exhausted"):
+        runner(fake).run("idea text", "Ana")
+    assert run.call_count == 1
+    assert fake.sleeps == ()

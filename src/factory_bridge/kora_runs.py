@@ -6,7 +6,7 @@ from factory_demo.kora_api import KoraClient
 
 SCOUT_TIMEOUT_S = 300
 POLL_S = 5.0
-SETTLED = frozenset({"idle", "completed", "failed", "error", "terminated"})
+SETTLED = frozenset({"idle", "completed", "failed", "budget_exhausted"})
 FINISHED = frozenset({"idle", "completed"})
 DELIVERY_LIMIT = 5
 ANSWER_EVENT = "message_complete"

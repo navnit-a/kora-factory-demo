@@ -96,3 +96,13 @@ def test_client_from_token_takes_the_url(monkeypatch):
     monkeypatch.setattr(kora_api, "default_ca_file", lambda: True)
     kora = client_from_token("t", base_url="https://kora.example/")
     assert kora.base_url == "https://kora.example"
+
+
+@respx.mock
+@pytest.mark.parametrize("reply", [{}, {"delivery_id": ""}, {"delivery_id": 5}, ["d-1"]])
+def test_fire_trigger_rejects_a_reply_without_a_delivery_id(reply):
+    respx.post(f"{BASE}/api/v1/trigger-fires/t-1").mock(
+        return_value=httpx.Response(202, json=reply)
+    )
+    with pytest.raises(ValueError, match="kora.*delivery_id"):
+        client().fire_trigger("t-1", {"idea": "x"})

@@ -1,14 +1,18 @@
 import logging
 from datetime import datetime
 
+import httpx
 import pytest
+import respx
 from fastmcp.exceptions import ToolError
 
 from factory_bridge import replies
+from factory_bridge.kora_runs import ScoutRunner
 from factory_bridge.pending import PENDING_TTL_S
 from factory_bridge.scout_result import parse_scout
 from factory_bridge.service import Bridge, State, scout_once
 from factory_bridge.telegram_api import Message
+from factory_demo.kora_api import KoraClient
 
 STARTED = 1_700_000_000
 NOW = 1_700_000_100.0
@@ -291,3 +295,73 @@ async def test_scout_once_returns_the_proposal_reply():
     runner = FakeRunner(answer())
     assert await scout_once(runner, IDEA, "Ana 2") == replies.proposal(parse_scout(answer()))
     assert runner.calls == ((IDEA, "Ana"),)
+
+
+class SilentBot(FakeBot):
+    def __init__(self, batches: tuple = (), fail_on: str = "") -> None:
+        super().__init__(batches)
+        self.fail_on = fail_on
+
+    async def send(self, chat_id: int, text: str) -> None:
+        if self.fail_on and text.startswith(self.fail_on):
+            raise ToolError("Telegram returned HTTP 502")
+        await super().send(chat_id, text)
+
+
+async def test_yes_whose_confirmation_fails_still_clears_the_proposal(allowlist, caplog):
+    bot = SilentBot(fail_on="Added to Ideas")
+    board = FakeBoard()
+    bridge = Bridge(bot, FakeRunner(answer()), board.create, allowlist, Clock(), STARTED)
+    proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        state = await bridge.handle(proposed, message("yes"))
+        again = await bridge.handle(state, message("yes"))
+    assert len(board.cards) == 1
+    assert state.pending == {}
+    assert bot.texts()[-1] == replies.nothing_pending()
+    assert again.pending == {}
+    assert "HTTP 502" in caplog.text
+
+
+async def test_yes_with_a_failing_board_tells_the_proposer_and_keeps_the_proposal(
+    allowlist, caplog
+):
+    async def broken_board(title: str, description: str) -> dict:
+        raise ToolError("Trello returned HTTP 500")
+
+    bot = FakeBot()
+    bridge = Bridge(bot, FakeRunner(answer()), broken_board, allowlist, Clock(), STARTED)
+    proposed = await bridge.handle(State(0, {}, {}), message(f"/idea {IDEA}"))
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        state = await bridge.handle(proposed, message("yes"))
+    assert bot.texts()[-1] == replies.card_failed()
+    assert state.pending == proposed.pending
+    assert "Trello returned HTTP 500" in caplog.text
+
+
+@respx.mock
+async def test_malformed_fire_reply_tells_the_user_and_keeps_the_service_alive(allowlist):
+    base = "https://api.local.runkora.io"
+    respx.post(f"{base}/api/v1/trigger-fires/t-scout").mock(
+        return_value=httpx.Response(202, json={"queued": True})
+    )
+    runner = ScoutRunner(KoraClient(base, "tok"), "t-scout", sleep=lambda _: None)
+    bot = FakeBot(([update(50, f"/idea {IDEA}"), update(51, "hello")],))
+    bridge = Bridge(bot, runner, FakeBoard().create, allowlist, Clock(), STARTED)
+    state = await bridge.step(State(0, {}, {}))
+    assert state.offset == 52
+    assert bot.texts() == (replies.ack(), replies.scout_failed(), replies.bad_text())
+    assert state.pending == {}
+
+
+async def test_bad_allowlist_line_refuses_and_logs_without_crashing(allowlist, caplog):
+    allowlist.write_text(f"{ALLOWED} Ana\nnot-an-id Bob\n")
+    bot = FakeBot(([update(60, f"/idea {IDEA}"), update(61, "yes")],))
+    runner = FakeRunner(answer())
+    bridge = Bridge(bot, runner, FakeBoard().create, allowlist, Clock(), STARTED)
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        state = await bridge.step(State(0, {}, {}))
+    assert state.offset == 62
+    assert bot.texts() == (replies.refused(ALLOWED), replies.refused(ALLOWED))
+    assert runner.calls == ()
+    assert "line 2" in caplog.text

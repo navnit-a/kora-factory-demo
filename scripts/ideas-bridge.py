@@ -11,7 +11,9 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from factory_bridge.commands import idea_text_ok  # noqa: E402
 from factory_bridge.kora_runs import ScoutRunner  # noqa: E402
+from factory_bridge.replies import bad_text  # noqa: E402
 from factory_bridge.service import Bridge, State, scout_once  # noqa: E402
 from factory_bridge.telegram_api import TelegramBot  # noqa: E402
 from factory_demo.kora_api import client_from_token  # noqa: E402
@@ -60,6 +62,9 @@ def main(argv: list[str] | None = None) -> int:
     absent = missing(KORA_KEYS if args.once else BRIDGE_KEYS)
     if absent:
         print(f"set these in .env first: {', '.join(absent)}", file=sys.stderr)
+        return 2
+    if args.once is not None and not idea_text_ok(args.once):
+        print(bad_text(), file=sys.stderr)
         return 2
     if args.once:
         runner = scout_runner(os.environ["KORA_BRIDGE_TOKEN"], os.environ["KORA_SCOUT_TRIGGER_ID"])

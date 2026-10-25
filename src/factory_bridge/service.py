@@ -46,7 +46,7 @@ class Bridge:
         if isinstance(command, Idea) and not idea_text_ok(command.text):
             await self._reply(message, replies.bad_text())
             return state
-        if message.user_id not in read_allowlist(self.allowlist_path):
+        if not self._allowed(message.user_id):
             await self._refuse(message)
             return state
         if isinstance(command, Idea):
@@ -123,10 +123,27 @@ class Bridge:
             await self._reply(message, replies.not_buildable_yes())
             return state
         title = card_title(proposal.result)
-        card = await self.create_card(title, card_description(proposal.result, proposal.first_name))
+        description = card_description(proposal.result, proposal.first_name)
+        try:
+            card = await self.create_card(title, description)
+        except ToolError as error:
+            log.error("card for user_id=%s not created: %s", message.user_id, error)
+            await self._reply(message, replies.card_failed())
+            return state
         log.info("card %s created for user_id=%s", card.get("id", ""), message.user_id)
-        await self._reply(message, replies.added(card.get("url", "")))
-        return replace(state, pending=rest)
+        cleared = replace(state, pending=rest)
+        try:
+            await self._reply(message, replies.added(card.get("url", "")))
+        except ToolError as error:
+            log.error("card %s created but the reply failed: %s", card.get("id", ""), error)
+        return cleared
+
+    def _allowed(self, user_id: int) -> bool:
+        try:
+            return user_id in read_allowlist(self.allowlist_path)
+        except (OSError, ValueError) as error:
+            log.error("allowlist unreadable, refusing user_id=%s: %s", user_id, error)
+            return False
 
     async def _refuse(self, message: Message) -> None:
         name = " ".join(message.first_name.split())

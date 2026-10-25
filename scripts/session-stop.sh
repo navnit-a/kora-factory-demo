@@ -6,8 +6,13 @@ KORA_DIR="${KORA_DIR:-$HOME/dev/kora}"
 BRIDGE_PID_FILE=deploy/generated/bridge.pid
 if [ -f "$BRIDGE_PID_FILE" ]; then
   BRIDGE_PID="$(cat "$BRIDGE_PID_FILE")"
-  if kill -0 "$BRIDGE_PID" 2>/dev/null; then
-    kill "$BRIDGE_PID"
+  BRIDGE_PGID="$(ps -o pgid= -p "$BRIDGE_PID" 2>/dev/null | tr -d ' ' || true)"
+  OWN_PGID="$(ps -o pgid= -p $$ | tr -d ' ')"
+  if [ -n "$BRIDGE_PGID" ] && [ "$BRIDGE_PGID" != "$OWN_PGID" ]; then
+    kill -TERM -- "-$BRIDGE_PGID" 2>/dev/null || true
+    echo "ideas bridge stopped (process group $BRIDGE_PGID)"
+  elif [ -n "$BRIDGE_PGID" ]; then
+    kill -TERM "$BRIDGE_PID" 2>/dev/null || true
     echo "ideas bridge stopped (pid $BRIDGE_PID)"
   fi
   rm -f "$BRIDGE_PID_FILE"

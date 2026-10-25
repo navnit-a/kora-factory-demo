@@ -56,6 +56,13 @@ def scout_failed() -> str:
     return "The idea scout could not write this one up. Nothing was added; try /idea again later."
 
 
+def card_failed() -> str:
+    return (
+        "The card could not be created on the board. Your proposal is kept; "
+        "reply yes again in a minute."
+    )
+
+
 def not_buildable_yes() -> str:
     return f"The scout judged this one not buildable, so it stays off the board. {ASK_NO}"
 

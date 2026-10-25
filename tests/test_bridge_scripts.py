@@ -1,7 +1,10 @@
 import importlib.util
 import os
+import re
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -154,3 +157,109 @@ def test_ideas_bridge_once_lists_missing_kora_env(monkeypatch, capsys):
     assert module.main(["--once", "Rate each talk out of five"]) == 2
     err = capsys.readouterr().err
     assert "KORA_BRIDGE_TOKEN" in err and "TELEGRAM_BOT_TOKEN" not in err
+
+
+@pytest.mark.parametrize("idea", ["too short", "Rate each talk <b>bold</b> please"])
+def test_ideas_bridge_once_refuses_bad_idea_text(monkeypatch, capsys, idea):
+    module = script("ideas-bridge.py")
+    monkeypatch.setenv("KORA_BRIDGE_TOKEN", "kora_x")
+    monkeypatch.setenv("KORA_SCOUT_TRIGGER_ID", "t-9")
+    built: tuple[str, ...] = ()
+
+    def runner_from(token: str, trigger_id: str):
+        nonlocal built
+        built = (*built, token)
+
+    monkeypatch.setattr(module, "scout_runner", runner_from)
+    assert module.main(["--once", idea]) == 2
+    assert built == ()
+    assert replies.bad_text() in capsys.readouterr().err
+
+
+def bridge_block(name: str) -> str:
+    text = (ROOT / "scripts" / name).read_text()
+    match = re.search(r"^BRIDGE_PID_FILE=.*?^fi$", text, re.S | re.M)
+    assert match, f"no bridge block in {name}"
+    return f"set -euo pipefail\n{match.group(0)}\n"
+
+
+def stub(directory: Path, name: str, body: str) -> None:
+    path = directory / name
+    path.write_text(f"#!/bin/sh\n{body}\n")
+    path.chmod(0o755)
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def wait_until(check, seconds: float = 5.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def run_block(name: str, cwd: Path, path: str) -> subprocess.CompletedProcess:
+    env = {**os.environ, "PATH": path}
+    return subprocess.run(
+        ["bash", "-c", bridge_block(name)], cwd=cwd, env=env, capture_output=True, text=True
+    )
+
+
+def test_session_scripts_start_the_bridge_in_its_own_group_and_stop_all_of_it(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    setsid = "import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])"
+    stub(bin_dir, "setsid", f'exec "{sys.executable}" -c "{setsid}" "$@"')
+    stub(bin_dir, "uv", "sleep 60 &\necho $! > child.pid\nwait")
+    (tmp_path / ".env").write_text("KORA_BRIDGE_TOKEN=kora_x\n")
+    path = f"{bin_dir}:{os.environ['PATH']}"
+    started = run_block("session-start.sh", tmp_path, path)
+    assert started.returncode == 0, started.stderr
+    pid = int((tmp_path / "deploy/generated/bridge.pid").read_text())
+    assert wait_until(lambda: (tmp_path / "child.pid").exists())
+    child = int((tmp_path / "child.pid").read_text())
+    try:
+        assert os.getpgid(pid) == pid
+        stopped = run_block("session-stop.sh", tmp_path, path)
+        assert stopped.returncode == 0, stopped.stderr
+        assert wait_until(lambda: not alive(child))
+        assert wait_until(lambda: not alive(pid))
+        assert not (tmp_path / "deploy/generated/bridge.pid").exists()
+    finally:
+        for leftover in (pid, child):
+            if alive(leftover):
+                os.kill(leftover, signal.SIGKILL)
+
+
+def test_session_stop_ignores_a_bridge_that_already_exited(tmp_path):
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    pid_file = tmp_path / "deploy/generated/bridge.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{gone.pid}\n")
+    stopped = run_block("session-stop.sh", tmp_path, os.environ["PATH"])
+    assert stopped.returncode == 0, stopped.stderr
+    assert not pid_file.exists()
+
+
+def test_session_stop_kills_only_the_bridge_when_it_shares_our_group(tmp_path):
+    bridge = subprocess.Popen(["sleep", "60"])
+    pid_file = tmp_path / "deploy/generated/bridge.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{bridge.pid}\n")
+    try:
+        stopped = run_block("session-stop.sh", tmp_path, os.environ["PATH"])
+        assert stopped.returncode == 0, stopped.stderr
+        assert bridge.wait(timeout=5) == -signal.SIGTERM
+        assert not pid_file.exists()
+    finally:
+        if bridge.poll() is None:
+            bridge.kill()

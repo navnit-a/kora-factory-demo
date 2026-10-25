@@ -33,3 +33,6 @@ committed, pasted into a prompt, or shown on screen.
 
 - 25 Oct 2026, 01:25: `make setup` 1m52s. Port 443 free. Port 5432 was held by another project's
   Postgres container, so kora's `.env` sets `DB_PORT=5433`.
+- 25 Oct 2026, 01:30: a `make up` run stopped building at policy-service with exit 255 and no
+  error; building that image alone worked, and rerunning `make up` resumes from the images already
+  in the local registry. If it recurs, run `bash scripts/cluster/redeploy.sh <service> --build-only`.

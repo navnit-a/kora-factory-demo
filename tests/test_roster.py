@@ -37,6 +37,7 @@ SANDBOXED = {*DATA_AGENTS, "agent-ops"}
 SONNET_AGENTS = {"senior-developer", "code-reviewer", "idea-scout", "agent-ops"}
 BUDGETS = {
     "senior-developer": (0.40, 10.0),
+    "code-reviewer": (0.40, 10.0),
     "idea-scout": (0.15, 5.0),
     "agent-ops": (0.40, 5.0),
     "sydney-trains": (0.30, 3.0),

@@ -1,7 +1,10 @@
+from itertools import product
 from typing import get_args
 
-from factory_tools.lists import BOARD_LISTS
+from factory_tools.lists import BOARD_LISTS, display_name
 from factory_tools.trello.look import (
+    ACTOR_LABEL_NAMES,
+    ACTOR_LABELS,
     CHECKLIST_NAME,
     LABELS,
     LANE_LOOK,
@@ -12,8 +15,19 @@ from factory_tools.trello.look import (
     LabelName,
     LaneLook,
     labels_after_move,
+    labels_on_create,
+    signed_reason,
     type_label,
 )
+
+ACTORS = {
+    "💡 Product owner": None,
+    "📋 Delivery lead": None,
+    "🤖 Senior developer": None,
+    "🔍 Code reviewer": None,
+    "🧪 Tester": None,
+    "🙋 Needs a human": None,
+}
 
 
 def test_lane_look_covers_every_list():
@@ -44,6 +58,7 @@ def test_palette_positions_and_checklist_name_match_the_plan():
         "Shipped": "green",
         "Proposed via Telegram": "pink",
         "Fixture": "black",
+        **ACTORS,
     }
     assert palette == LABELS
     assert set(get_args(LabelName)) == set(LABELS)
@@ -67,19 +82,92 @@ def test_labels_after_move_adds_shipped_and_drops_depends_on():
     assert labels_after_move(("Story",), "Done", "Tests pass") == ("Story", "Shipped")
     assert labels_after_move(("Story", "Shipped"), "Done", "again") == ("Story", "Shipped")
     unblocked = labels_after_move(("Bug", "Depends on"), "Ready", "Unblocked: API is back")
-    assert unblocked == ("Bug",)
+    assert unblocked == ("Bug", "📋 Delivery lead")
     kept = labels_after_move(("Bug", "Depends on"), "Ready", "Moving it back")
-    assert kept == ("Bug", "Depends on")
-    assert labels_after_move(("Depends on",), "Blocked", "Unblocked: no") == ("Depends on",)
+    assert kept == ("Bug", "Depends on", "📋 Delivery lead")
+    blocked = labels_after_move(("Depends on",), "Blocked", "Unblocked: no")
+    assert blocked == ("Depends on", "🙋 Needs a human")
     current = ("Story",)
     labels_after_move(current, "Done", "x")
     assert current == ("Story",)
 
 
 def test_labels_after_move_drops_idea_outside_ideas():
-    assert labels_after_move(("Idea", "Fixture"), "Backlog", "A story") == ("Fixture",)
-    assert labels_after_move(("Idea",), "Blocked", "No clear value") == ()
+    assert labels_after_move(("Idea", "Fixture"), "Backlog", "A story") == (
+        "Fixture",
+        "📋 Delivery lead",
+    )
+    assert labels_after_move(("Idea",), "Blocked", "No clear value") == ("🙋 Needs a human",)
     assert labels_after_move(("Idea", "Proposed via Telegram"), "Ideas", "") == (
         "Idea",
         "Proposed via Telegram",
+        "💡 Product owner",
     )
+
+
+def test_actor_labels_cover_every_lane():
+    assert ACTOR_LABELS == {
+        "Ideas": "💡 Product owner",
+        "Backlog": "📋 Delivery lead",
+        "Ready": "📋 Delivery lead",
+        "In Progress": "🤖 Senior developer",
+        "Review": "🔍 Code reviewer",
+        "Testing": "🧪 Tester",
+        "Done": None,
+        "Blocked": "🙋 Needs a human",
+    }
+    assert set(ACTOR_LABELS) == set(BOARD_LISTS)
+    assert frozenset(ACTORS) == ACTOR_LABEL_NAMES
+    assert all(LABELS[name] is None for name in ACTOR_LABEL_NAMES)
+
+
+def test_move_swaps_actor_labels():
+    current = ("Story", "🤖 Senior developer", "High severity")
+    assert labels_after_move(current, "Review", "PR #4 opened") == (
+        "Story",
+        "High severity",
+        "🔍 Code reviewer",
+    )
+    stale = ("Bug", "🧪 Tester", "💡 Product owner")
+    assert labels_after_move(stale, "Ready", "Back to the queue") == ("Bug", "📋 Delivery lead")
+    assert labels_after_move(("📋 Delivery lead",), "Ready", "again") == ("📋 Delivery lead",)
+
+
+def test_done_removes_actor_labels():
+    current = ("Story", "🧪 Tester", "🙋 Needs a human")
+    assert labels_after_move(current, "Done", "Tests pass") == ("Story", "Shipped")
+
+
+def test_create_carries_the_lanes_actor_label():
+    assert labels_on_create("Dark mode", "Ideas") == ("Idea", "💡 Product owner")
+    assert labels_on_create("Bug: crash [fixture]", "Backlog") == (
+        "Bug",
+        "Fixture",
+        "📋 Delivery lead",
+    )
+    assert labels_on_create("Ship it", "Done") == ("Story",)
+
+
+def test_signed_reason_names_leaving_actor_and_destination():
+    assert signed_reason("In Progress", "Review", "PR https://github.com/x/y/pull/4") == (
+        "🤖 Senior developer → 🔍 Review · code reviewer reads: PR https://github.com/x/y/pull/4"
+    )
+    assert signed_reason("Testing", "Done", "Tests pass") == (
+        "🧪 Tester → ✅ Done · shipped: Tests pass"
+    )
+    assert signed_reason("Done", "In Progress", "Regression found") == (
+        "✅ Done · shipped → 🛠 In Progress · senior developer builds: Regression found"
+    )
+    assert signed_reason("Blocked", "Ready", "Unblocked: the API is back") == (
+        "🙋 Needs a human → 🟡 Ready · next for the developer: Unblocked: the API is back"
+    )
+    assert signed_reason(None, "Backlog", "Filed by support") == "Filed by support"
+
+
+def test_signed_move_comment_keeps_bookkeeping_prefixes_recognisable():
+    prefixes = ("Depends on:", "Unblocked:", "Agent ops:")
+    for from_list, to_list in product(BOARD_LISTS, BOARD_LISTS):
+        signed = signed_reason(from_list, to_list, "Unblocked: the theme card shipped")
+        assert not signed.startswith(prefixes)
+        assert signed.endswith(f"{display_name(to_list)}: Unblocked: the theme card shipped")
+    assert signed_reason(None, "Ready", "Unblocked: shipped").startswith("Unblocked:")

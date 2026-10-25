@@ -21,6 +21,8 @@ from factory_tools.trello.look import (
 if TYPE_CHECKING:
     from factory_tools.trello.client import TrelloClient
 
+NO_COLOUR = "null"
+
 
 def required_id(reply: dict, what: str) -> str:
     found = reply.get("id")
@@ -114,7 +116,7 @@ async def ensure_label(client: TrelloClient, name: str) -> str:
     existing = await board_labels(client)
     if name in existing:
         return existing[name]
-    fields = {"name": name, "color": LABELS[name], "idBoard": client.board_id}
+    fields = {"name": name, "color": LABELS[name] or NO_COLOUR, "idBoard": client.board_id}
     return required_id(await client._write("POST", "/labels", fields), "label")
 
 

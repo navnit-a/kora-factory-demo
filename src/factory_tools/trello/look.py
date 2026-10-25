@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from factory_tools.lists import LANES, display_name
+
 
 @dataclass(frozen=True)
 class LaneLook:
@@ -18,7 +20,9 @@ LANE_LOOK: dict[str, LaneLook] = {
     "Done": LaneLook("green", "check"),
     "Blocked": LaneLook("red", "warning"),
 }
-LABELS: dict[str, str] = {
+ACTOR_LABELS: dict[str, str | None] = {lane.name: lane.actor for lane in LANES}
+ACTOR_LABEL_NAMES = frozenset(actor for actor in ACTOR_LABELS.values() if actor)
+LABELS: dict[str, str | None] = {
     "Idea": "sky",
     "Story": "blue",
     "Bug": "red",
@@ -28,6 +32,7 @@ LABELS: dict[str, str] = {
     "Shipped": "green",
     "Proposed via Telegram": "pink",
     "Fixture": "black",
+    **dict.fromkeys(actor for actor in ACTOR_LABELS.values() if actor),
 }
 LabelName = Literal[
     "Idea",
@@ -39,6 +44,12 @@ LabelName = Literal[
     "Shipped",
     "Proposed via Telegram",
     "Fixture",
+    "💡 Product owner",
+    "📋 Delivery lead",
+    "🤖 Senior developer",
+    "🔍 Code reviewer",
+    "🧪 Tester",
+    "🙋 Needs a human",
 ]
 LANE_STICKERS = frozenset({"rocketship", "thumbsup", "check", "warning"})
 STAR = "star"
@@ -72,15 +83,31 @@ def type_label(title: str, list_name: str) -> str:
 def labels_on_create(title: str, list_name: str) -> tuple[str, ...]:
     label = type_label(title, list_name)
     fixture = (FIXTURE,) if FIXTURE_TAG in title and label != FIXTURE else ()
-    return (label, *fixture)
+    return (label, *fixture, *_actor(list_name))
+
+
+def _actor(list_name: str) -> tuple[str, ...]:
+    actor = ACTOR_LABELS.get(list_name)
+    return (actor,) if actor else ()
 
 
 def _dropped(name: str, to_list: str, unblocked: bool) -> bool:
-    return (unblocked and name == DEPENDS_ON) or (to_list != IDEAS and name == IDEA)
+    return (
+        name in ACTOR_LABEL_NAMES
+        or (unblocked and name == DEPENDS_ON)
+        or (to_list != IDEAS and name == IDEA)
+    )
 
 
 def labels_after_move(current: tuple[str, ...], to_list: str, reason: str) -> tuple[str, ...]:
     unblocked = to_list != BLOCKED and reason.lstrip().startswith(UNBLOCKED)
     kept = tuple(name for name in current if not _dropped(name, to_list, unblocked))
     shipped = (SHIPPED,) if to_list == DONE and SHIPPED not in kept else ()
-    return (*kept, *shipped)
+    return (*kept, *_actor(to_list), *shipped)
+
+
+def signed_reason(from_list: str | None, to_list: str, reason: str) -> str:
+    if from_list is None:
+        return reason
+    signature = ACTOR_LABELS.get(from_list) or display_name(from_list)
+    return f"{signature} → {display_name(to_list)}: {reason}"

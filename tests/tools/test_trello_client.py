@@ -34,8 +34,9 @@ def mock_look(
     stickers: list[dict] | None = None,
     card_labels: list[dict] | None = None,
     board_labels: list[dict] | None = None,
+    list_id: str | None = None,
 ) -> dict[str, respx.Route]:
-    card = {"id": card_id, "idBoard": "board", "labels": card_labels or []}
+    card = {"id": card_id, "idBoard": "board", "idList": list_id, "labels": card_labels or []}
     return {
         "card": respx.get(f"{API}/cards/{card_id}").mock(
             return_value=httpx.Response(200, json=card)
@@ -473,9 +474,11 @@ def test_move_to_a_lane_without_cover_clears_it_and_adds_no_sticker():
 @respx.mock
 def test_move_still_happens_when_the_look_fails():
     mock_lists()
-    routes = mock_look(CARD)
+    routes = mock_look(CARD, list_id="l-progress")
     down = httpx.Response(503, text="down")
     routes["put"].mock(side_effect=[httpx.Response(200, json={}), down] * 2)
+    refused = httpx.Response(500, text="no labels")
+    routes["add_label"].mock(side_effect=[refused, httpx.Response(200, json=[])])
     comment = respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
         return_value=httpx.Response(200, json={"id": "a1"})
     )
@@ -484,14 +487,15 @@ def test_move_still_happens_when_the_look_fails():
     assert form(routes["put"].calls[0].request) == {"idList": "l-review"}
     assert moved["list"] == "Review" and moved["comment_posted"] is True
     assert moved["look_applied"] is False
-    assert "HTTP 503" in moved["detail"]
+    assert "HTTP 503" in moved["detail"] and "HTTP 500" in moved["detail"]
     assert "token" not in moved["detail"]
+    assert form(routes["new_label"].calls[0].request)["name"] == "🔍 Code reviewer"
     assert form(routes["add_sticker"].calls[0].request)["image"] == "rocketship"
     shipped = run(client().move_with_reason(CARD, "Done", "Tests pass"))
     assert shipped["list"] == "Done" and shipped["look_applied"] is False
     assert "HTTP 503" in shipped["detail"]
-    assert form(routes["new_label"].calls[0].request)["name"] == "Shipped"
-    assert form(routes["add_label"].calls[0].request) == {"value": "lab-new"}
+    assert form(routes["new_label"].calls[1].request)["name"] == "Shipped"
+    assert form(routes["add_label"].calls[1].request) == {"value": "lab-new"}
     assert form(routes["add_sticker"].calls[1].request)["image"] == "check"
 
 
@@ -542,10 +546,17 @@ def test_create_sets_the_type_label():
     respx.post(f"{API}/cards").mock(
         return_value=httpx.Response(200, json={"id": CARD, "shortUrl": "https://trello.com/c/c9"})
     )
-    routes = mock_look(CARD, board_labels=[{"id": "lab-bug", "name": "Bug", "color": "red"}])
+    routes = mock_look(
+        CARD,
+        board_labels=[
+            {"id": "lab-bug", "name": "Bug", "color": "red"},
+            {"id": "lab-po", "name": "💡 Product owner", "color": None},
+        ],
+    )
     created = run(client().create("Ideas", "Bug: times show in UTC", "They should be local"))
     assert created["label"] == "Bug" and created["look_applied"] is True
-    assert form(routes["add_label"].calls[0].request) == {"value": "lab-bug"}
+    added = [form(call.request) for call in routes["add_label"].calls]
+    assert added == [{"value": "lab-bug"}, {"value": "lab-po"}]
     assert not routes["new_label"].called
     assert body(routes["put"].calls[0].request) == {"cover": {"color": None}}
 
@@ -561,16 +572,17 @@ def test_create_adds_fixture_beside_the_prefix_label():
         board_labels=[
             {"id": "lab-bug", "name": "Bug", "color": "red"},
             {"id": "lab-fix", "name": "Fixture", "color": "black"},
+            {"id": "lab-dl", "name": "📋 Delivery lead", "color": None},
         ],
     )
     created = run(client().create("Backlog", "Bug: times show in UTC [fixture]", "d"))
     assert created["label"] == "Bug" and created["look_applied"] is True
     added = [form(call.request) for call in routes["add_label"].calls]
-    assert added == [{"value": "lab-bug"}, {"value": "lab-fix"}]
+    assert added == [{"value": "lab-bug"}, {"value": "lab-fix"}, {"value": "lab-dl"}]
     fixture = run(client().create("Backlog", "Count the sessions [fixture]", "d"))
     assert fixture["label"] == "Fixture"
-    assert routes["add_label"].call_count == 3
-    assert form(routes["add_label"].calls[2].request) == {"value": "lab-fix"}
+    later = [form(call.request) for call in routes["add_label"].calls[3:]]
+    assert later == [{"value": "lab-fix"}, {"value": "lab-dl"}]
 
 
 @respx.mock
@@ -601,6 +613,77 @@ def test_ensure_label_creates_missing_known_labels_only():
     with pytest.raises(ToolError, match="No label named 'Urgent'.*Bug.*High severity"):
         run(c.ensure_label("Urgent"))
     assert routes["new_label"].call_count == 1
+
+
+@respx.mock
+def test_colourless_label_is_created_without_colour():
+    routes = mock_look(CARD)
+    assert run(client().ensure_label("🤖 Senior developer")) == "lab-new"
+    assert form(routes["new_label"].calls[0].request) == {
+        "name": "🤖 Senior developer",
+        "color": "null",
+        "idBoard": "board",
+    }
+
+
+def comment_route() -> respx.Route:
+    return respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+
+
+@respx.mock
+def test_move_swaps_actor_labels():
+    mock_lists(DISPLAY_LISTS)
+    routes = mock_look(
+        CARD,
+        list_id="l-progress",
+        card_labels=[
+            {"id": "lab-story", "name": "Story"},
+            {"id": "lab-dev", "name": "🤖 Senior developer"},
+            {"id": "lab-high", "name": "High severity"},
+        ],
+        board_labels=[{"id": "lab-cr", "name": "🔍 Code reviewer", "color": None}],
+    )
+    comment = comment_route()
+    dev = delete_route(f"/cards/{CARD}/idLabels/lab-dev")
+    story = delete_route(f"/cards/{CARD}/idLabels/lab-story")
+    high = delete_route(f"/cards/{CARD}/idLabels/lab-high")
+    moved = run(client().move_with_reason(CARD, "Review", "PR https://github.com/x/y/pull/4"))
+    assert form(comment.calls[0].request) == {
+        "text": "🤖 Senior developer → 🔍 Review · code reviewer reads: "
+        "PR https://github.com/x/y/pull/4"
+    }
+    assert dev.called and not story.called and not high.called
+    assert [form(call.request) for call in routes["add_label"].calls] == [{"value": "lab-cr"}]
+    assert not routes["new_label"].called
+    assert moved["comment_posted"] is True and moved["look_applied"] is True
+
+
+@respx.mock
+def test_done_removes_actor_labels():
+    mock_lists()
+    routes = mock_look(
+        CARD,
+        list_id="l-testing",
+        card_labels=[{"id": "lab-story", "name": "Story"}, {"id": "lab-qa", "name": "🧪 Tester"}],
+    )
+    comment = comment_route()
+    tester = delete_route(f"/cards/{CARD}/idLabels/lab-qa")
+    run(client().move_with_reason(CARD, "Done", "Tests pass"))
+    assert form(comment.calls[0].request) == {"text": "🧪 Tester → ✅ Done · shipped: Tests pass"}
+    assert tester.called
+    created = [form(call.request)["name"] for call in routes["new_label"].calls]
+    assert created == ["Shipped"]
+
+
+@respx.mock
+def test_move_from_a_list_outside_the_lanes_posts_the_reason_unsigned():
+    mock_lists([*LISTS, {"id": "l-parking", "name": "Parking lot"}])
+    mock_look(CARD, list_id="l-parking")
+    comment = comment_route()
+    run(client().move_with_reason(CARD, "Backlog", "Back in the queue"))
+    assert form(comment.calls[0].request) == {"text": "Back in the queue"}
 
 
 @respx.mock

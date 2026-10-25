@@ -21,6 +21,12 @@ PALETTE_PLAN = (
     ("rename", "Shipped", "green"),
     ("create", "Proposed via Telegram", "pink"),
     ("create", "Fixture", "black"),
+    ("create", "💡 Product owner", None),
+    ("create", "📋 Delivery lead", None),
+    ("create", "🤖 Senior developer", None),
+    ("create", "🔍 Code reviewer", None),
+    ("create", "🧪 Tester", None),
+    ("create", "🙋 Needs a human", None),
     ("rename", "Ready", "yellow"),
 )
 BOARD_PLAN = tuple(

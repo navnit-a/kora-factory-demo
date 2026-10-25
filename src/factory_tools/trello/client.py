@@ -8,7 +8,7 @@ from fastmcp.exceptions import ToolError
 from factory_tools.http import json_or_error, request, truncate
 from factory_tools.lists import canonical_name, lists_sentence
 from factory_tools.trello import card_view, checklist_client, look_client
-from factory_tools.trello.look import labels_on_create
+from factory_tools.trello.look import labels_on_create, signed_reason
 
 API = "https://api.trello.com/1"
 COMMENT_TAIL = 5
@@ -90,9 +90,12 @@ class TrelloClient:
         return {"id": card_id, "list": to_list}
 
     async def move_with_reason(self, card_id: str, to_list: str, reason: str) -> dict:
-        await self._board_card(card_id, "idBoard")
-        list_id = _list_id(await self._board_lists(), to_list)
-        await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": reason})
+        card = await self._board_card(card_id, "idBoard,idList")
+        lists = await self._board_lists()
+        list_id = _list_id(lists, to_list)
+        from_list = _lane_of(lists, card.get("idList"))
+        signed = signed_reason(from_list, to_list, reason)
+        await self._write("POST", f"/cards/{card_id}/actions/comments", {"text": signed})
         await self._write("PUT", f"/cards/{card_id}", {"idList": list_id})
         look = await self.apply_look(card_id, to_list, reason)
         return {"id": card_id, "list": to_list, "comment_posted": True, **look}
@@ -170,6 +173,11 @@ class TrelloClient:
 def _canonical_ids(lists: list[dict]) -> dict[str, str]:
     matched = [(canonical_name(item["name"]), item["id"]) for item in lists]
     return dict(reversed([(name, list_id) for name, list_id in matched if name]))
+
+
+def _lane_of(lists: list[dict], list_id: object) -> str | None:
+    names = {found: name for name, found in _canonical_ids(lists).items()}
+    return names.get(list_id) if isinstance(list_id, str) else None
 
 
 def _list_id(lists: list[dict], list_name: str) -> str:

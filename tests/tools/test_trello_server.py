@@ -99,7 +99,7 @@ def test_move_card_comments_the_reason_then_moves():
     respx.put(f"{API}/cards/0123456789abcdef0123456a").mock(
         side_effect=lambda request: (order.append("put"), httpx.Response(200, json={}))[1]
     )
-    mock_look_reads(CID)
+    mock_look_reads(CID, [{"id": "lab-cr", "name": "🔍 Code reviewer"}])
     result = run(
         call(
             "trello_move_card",
@@ -163,6 +163,14 @@ def test_get_card_description_names_labels_and_the_checklist():
     assert "Acceptance criteria" in tool.description
 
 
+def test_move_card_says_the_comment_is_signed_and_the_actor_label_set():
+    tool = run(tools())["trello_move_card"]
+    assert "signed by the lane the card leaves" in tool.description
+    assert "actor label" in tool.description
+    labels = run(tools())["trello_add_label"].input_schema["properties"]["name"]
+    assert "🤖 Senior developer" in str(labels)
+
+
 @respx.mock
 def test_create_card_and_update_description():
     respx.get(f"{API}/boards/board/lists").mock(return_value=httpx.Response(200, json=LISTS))
@@ -177,7 +185,10 @@ def test_create_card_and_update_description():
             200, json={"id": "0123456789abcdef0123456b", "idBoard": "board"}
         )
     )
-    mock_look_reads("0123456789abcdef0123456b", [{"id": "lab-idea", "name": "Idea"}])
+    mock_look_reads(
+        "0123456789abcdef0123456b",
+        [{"id": "lab-idea", "name": "Idea"}, {"id": "lab-po", "name": "💡 Product owner"}],
+    )
     created = run(call("trello_create_card", list_name="Ideas", title="Dark mode", description="d"))
     assert created["id"] == "0123456789abcdef0123456b"
     assert created["label"] == "Idea" and created["look_applied"] is True

@@ -68,12 +68,15 @@ async def trello_get_card(card_id: CardId) -> dict:
 @mcp.tool(
     annotations=WRITE,
     description="Move a card to another list. The target list is checked first, then the reason "
-    "is posted as a comment, then the card moves.",
+    "is posted as a comment signed by the lane the card leaves (its actor, then the destination "
+    "lane), then the card moves and its actor label is set to the destination lane's.",
 )
 async def trello_move_card(
     card_id: CardId,
     to_list: Annotated[ListName, Field(description=LIST_DESCRIPTION)],
-    reason: Annotated[str, text_field("Why the card moves; posted as a comment.", 3)],
+    reason: Annotated[
+        str, text_field("Why the card moves; posted as a comment after the signature.", 3)
+    ],
 ) -> dict:
     return await with_trello(lambda trello: trello.move_with_reason(card_id, to_list, reason))
 

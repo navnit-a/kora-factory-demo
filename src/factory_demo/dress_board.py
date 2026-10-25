@@ -29,7 +29,7 @@ RENAMES = {**COLOUR_NAMES, READY_COLOUR: READY}
 RENAME = "rename"
 RELABEL_HEADER = "Cards whose colour label becomes:"
 
-LabelAction = tuple[str, str, str]
+LabelAction = tuple[str, str, str | None]
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class DressReport:
     relabelled_cards: tuple[tuple[str, str], ...]
 
 
-def _label_action(name: str, colour: str, named: set[str], unnamed: set[str]) -> LabelAction:
+def _label_action(name: str, colour: str | None, named: set[str], unnamed: set[str]) -> LabelAction:
     if name in named:
         return ("keep", name, colour)
     if RENAMES.get(colour) == name and colour in unnamed:

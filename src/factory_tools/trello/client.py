@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -10,7 +11,8 @@ from factory_tools.lists import lists_sentence
 API = "https://api.trello.com/1"
 COMMENT_TAIL = 5
 ENV_KEYS = ("TRELLO_API_KEY", "TRELLO_TOKEN", "TRELLO_BOARD_ID")
-CARD_FIELDS = "id,name,desc,idList,shortUrl,dateLastActivity"
+CARD_FIELDS = "id,name,desc,idList,idBoard,shortUrl,dateLastActivity"
+CARD_ID = re.compile(r"^(?:[0-9a-fA-F]{24}|[A-Za-z0-9]{8})$")
 RETRY_HINT = "Check the card id and that the board still has that list."
 
 
@@ -44,9 +46,9 @@ class TrelloClient:
         return [_summary(card, list_name) for card in response.json()]
 
     async def card(self, card_id: str) -> dict:
+        card = await self._board_card(card_id, CARD_FIELDS)
         ids = await self.list_ids()
         names = {value: key for key, value in ids.items()}
-        card = (await self._get(f"/cards/{card_id}", {"fields": CARD_FIELDS})).json()
         actions = (
             await self._get(
                 f"/cards/{card_id}/actions", {"filter": "commentCard", "limit": str(COMMENT_TAIL)}
@@ -63,11 +65,13 @@ class TrelloClient:
         }
 
     async def move(self, card_id: str, to_list: str) -> dict:
+        await self._board_card(card_id, "idBoard")
         list_id = _list_id(await self.list_ids(), to_list)
         await self._put(f"/cards/{card_id}", {"idList": list_id})
         return {"id": card_id, "list": to_list}
 
     async def comment(self, card_id: str, text: str) -> dict:
+        await self._board_card(card_id, "idBoard")
         response = await self._post(f"/cards/{card_id}/actions/comments", {"text": text})
         return {"id": card_id, "comment_id": response.json().get("id", "")}
 
@@ -80,8 +84,21 @@ class TrelloClient:
         return {"id": body.get("id", ""), "url": body.get("shortUrl", ""), "list": list_name}
 
     async def set_description(self, card_id: str, text: str) -> dict:
+        await self._board_card(card_id, "idBoard")
         await self._put(f"/cards/{card_id}", {"desc": text})
         return {"id": card_id, "description_updated": True}
+
+    async def _board_card(self, card_id: str, fields: str) -> dict:
+        if not CARD_ID.match(card_id):
+            raise ToolError(
+                f"'{card_id}' is not a Trello card id; use an id from trello_list_cards."
+            )
+        card = (await self._get(f"/cards/{card_id}", {"fields": fields})).json()
+        if card.get("idBoard") != self.board_id:
+            raise ToolError(
+                f"Card {card_id} is not on the factory board; only its cards can be used."
+            )
+        return card
 
     async def _get(self, path: str, params: dict) -> httpx.Response:
         return await self._call("GET", path, params)

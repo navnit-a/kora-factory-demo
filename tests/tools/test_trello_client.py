@@ -58,7 +58,7 @@ def test_cards_in_requests_the_list_id_with_a_limit():
             200,
             json=[
                 {
-                    "id": "c1",
+                    "id": "0123456789abcdef0123456a",
                     "name": "Add now and next",
                     "shortUrl": "https://trello.com/c/c1",
                     "dateLastActivity": "2026-10-25T01:00:00.000Z",
@@ -69,7 +69,7 @@ def test_cards_in_requests_the_list_id_with_a_limit():
     cards = run(client().cards_in("Ready", 10))
     assert cards == [
         {
-            "id": "c1",
+            "id": "0123456789abcdef0123456a",
             "title": "Add now and next",
             "list": "Ready",
             "url": "https://trello.com/c/c1",
@@ -82,26 +82,27 @@ def test_cards_in_requests_the_list_id_with_a_limit():
 @respx.mock
 def test_card_includes_last_five_comments_truncated():
     mock_lists()
-    respx.get(f"{API}/cards/c1").mock(
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
         return_value=httpx.Response(
             200,
             json={
-                "id": "c1",
+                "id": "0123456789abcdef0123456a",
                 "name": "Add now and next",
                 "desc": "d" * 1300,
                 "idList": "l-review",
+                "idBoard": "board",
                 "shortUrl": "https://trello.com/c/c1",
                 "dateLastActivity": "2026-10-25T01:00:00.000Z",
             },
         )
     )
-    actions = respx.get(f"{API}/cards/c1/actions").mock(
+    actions = respx.get(f"{API}/cards/0123456789abcdef0123456a/actions").mock(
         return_value=httpx.Response(
             200,
             json=[{"date": "2026-10-25T00:59:00.000Z", "data": {"text": "x" * 1300}}],
         )
     )
-    card = run(client().card("c1"))
+    card = run(client().card("0123456789abcdef0123456a"))
     assert card["list"] == "Review"
     assert card["description"].endswith(" (truncated)")
     assert card["comments"] == [
@@ -114,35 +115,61 @@ def test_card_includes_last_five_comments_truncated():
 @respx.mock
 def test_move_sends_the_target_list_id():
     mock_lists()
-    put = respx.put(f"{API}/cards/c1").mock(
-        return_value=httpx.Response(200, json={"id": "c1", "idList": "l-done"})
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456a", "idBoard": "board"}
+        )
     )
-    moved = run(client().move("c1", "Done"))
+    put = respx.put(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456a", "idList": "l-done"}
+        )
+    )
+    moved = run(client().move("0123456789abcdef0123456a", "Done"))
     assert put.calls[0].request.url.params["idList"] == "l-done"
-    assert moved == {"id": "c1", "list": "Done"}
+    assert moved == {"id": "0123456789abcdef0123456a", "list": "Done"}
 
 
 @respx.mock
 def test_create_posts_to_the_list_id():
     mock_lists()
     post = respx.post(f"{API}/cards").mock(
-        return_value=httpx.Response(200, json={"id": "c9", "shortUrl": "https://trello.com/c/c9"})
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456b", "shortUrl": "https://trello.com/c/c9"}
+        )
     )
     created = run(client().create("Ideas", "Dark mode", "Attendees in a dim hall"))
     params = post.calls[0].request.url.params
     assert params["idList"] == "l-ideas" and params["name"] == "Dark mode"
-    assert created == {"id": "c9", "url": "https://trello.com/c/c9", "list": "Ideas"}
+    assert created == {
+        "id": "0123456789abcdef0123456b",
+        "url": "https://trello.com/c/c9",
+        "list": "Ideas",
+    }
 
 
 @respx.mock
 def test_comment_and_description_use_their_endpoints():
-    comment = respx.post(f"{API}/cards/c1/actions/comments").mock(
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456a", "idBoard": "board"}
+        )
+    )
+    comment = respx.post(f"{API}/cards/0123456789abcdef0123456a/actions/comments").mock(
         return_value=httpx.Response(200, json={"id": "a1"})
     )
-    desc = respx.put(f"{API}/cards/c1").mock(return_value=httpx.Response(200, json={"id": "c1"}))
-    assert run(client().comment("c1", "done")) == {"id": "c1", "comment_id": "a1"}
+    desc = respx.put(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(200, json={"id": "0123456789abcdef0123456a"})
+    )
+    assert run(client().comment("0123456789abcdef0123456a", "done")) == {
+        "id": "0123456789abcdef0123456a",
+        "comment_id": "a1",
+    }
     assert comment.calls[0].request.url.params["text"] == "done"
-    assert run(client().set_description("c1", "new")) == {"id": "c1", "description_updated": True}
+    assert run(client().set_description("0123456789abcdef0123456a", "new")) == {
+        "id": "0123456789abcdef0123456a",
+        "description_updated": True,
+    }
     assert desc.calls[0].request.url.params["desc"] == "new"
 
 
@@ -169,3 +196,22 @@ def test_from_env_names_a_missing_variable(monkeypatch):
     monkeypatch.setenv("TRELLO_BOARD_ID", "b")
     with pytest.raises(ToolError, match="TRELLO_TOKEN"):
         TrelloClient.from_env(httpx.AsyncClient())
+
+
+@pytest.mark.parametrize("bad", ["../boards/x", "c1/actions", "abc def", "", "x" * 30])
+def test_card_ids_that_are_not_trello_ids_are_rejected_before_any_call(bad):
+    with pytest.raises(ToolError, match="not a Trello card id"):
+        run(client().card(bad))
+
+
+@respx.mock
+def test_a_card_on_another_board_is_refused():
+    respx.get(f"{API}/cards/0123456789abcdef01234567").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef01234567", "idBoard": "other"}
+        )
+    )
+    move = respx.put(f"{API}/cards/0123456789abcdef01234567")
+    with pytest.raises(ToolError, match="not on the factory board"):
+        run(client().move("0123456789abcdef01234567", "Done"))
+    assert not move.called

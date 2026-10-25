@@ -68,36 +68,65 @@ def test_list_cards_defaults_to_ten():
 @respx.mock
 def test_move_card_comments_the_reason_then_moves():
     respx.get(f"{API}/boards/board/lists").mock(return_value=httpx.Response(200, json=LISTS))
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456a", "idBoard": "board"}
+        )
+    )
     order: list[str] = []
-    respx.post(f"{API}/cards/c1/actions/comments").mock(
+    respx.post(f"{API}/cards/0123456789abcdef0123456a/actions/comments").mock(
         side_effect=lambda request: (
             order.append("comment"),
             httpx.Response(200, json={"id": "a1"}),
         )[1]
     )
-    respx.put(f"{API}/cards/c1").mock(
+    respx.put(f"{API}/cards/0123456789abcdef0123456a").mock(
         side_effect=lambda request: (order.append("move"), httpx.Response(200, json={}))[1]
     )
-    result = run(call("trello_move_card", card_id="c1", to_list="Review", reason="PR #4 opened"))
+    result = run(
+        call(
+            "trello_move_card",
+            card_id="0123456789abcdef0123456a",
+            to_list="Review",
+            reason="PR #4 opened",
+        )
+    )
     assert order == ["comment", "move"]
-    assert result == {"id": "c1", "list": "Review", "comment_posted": True}
+    assert result == {"id": "0123456789abcdef0123456a", "list": "Review", "comment_posted": True}
 
 
 def test_to_list_outside_the_board_is_rejected_before_any_call():
     with pytest.raises(ToolError):
-        run(call("trello_move_card", card_id="c1", to_list="Archive", reason="x"))
+        run(
+            call(
+                "trello_move_card",
+                card_id="0123456789abcdef0123456a",
+                to_list="Archive",
+                reason="x",
+            )
+        )
 
 
 @respx.mock
 def test_get_card_returns_description_and_comments():
     respx.get(f"{API}/boards/board/lists").mock(return_value=httpx.Response(200, json=LISTS))
-    respx.get(f"{API}/cards/c1").mock(
+    respx.get(f"{API}/cards/0123456789abcdef0123456a").mock(
         return_value=httpx.Response(
-            200, json={"id": "c1", "name": "T", "desc": "D", "idList": "l-ideas", "shortUrl": "u"}
+            200,
+            json={
+                "id": "0123456789abcdef0123456a",
+                "name": "T",
+                "desc": "D",
+                "idList": "l-ideas",
+                "idBoard": "board",
+                "shortUrl": "u",
+            },
         )
     )
-    respx.get(f"{API}/cards/c1/actions").mock(return_value=httpx.Response(200, json=[]))
-    card = run(call("trello_get_card", card_id="c1"))
+    respx.get(f"{API}/cards/0123456789abcdef0123456a/actions").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    card = run(call("trello_get_card", card_id="0123456789abcdef0123456a"))
     assert card["description"] == "D" and card["list"] == "Ideas" and card["comments"] == []
 
 
@@ -105,10 +134,19 @@ def test_get_card_returns_description_and_comments():
 def test_create_card_and_update_description():
     respx.get(f"{API}/boards/board/lists").mock(return_value=httpx.Response(200, json=LISTS))
     respx.post(f"{API}/cards").mock(
-        return_value=httpx.Response(200, json={"id": "c9", "shortUrl": "u"})
+        return_value=httpx.Response(200, json={"id": "0123456789abcdef0123456b", "shortUrl": "u"})
     )
-    respx.put(f"{API}/cards/c9").mock(return_value=httpx.Response(200, json={}))
+    respx.put(f"{API}/cards/0123456789abcdef0123456b").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    respx.get(f"{API}/cards/0123456789abcdef0123456b").mock(
+        return_value=httpx.Response(
+            200, json={"id": "0123456789abcdef0123456b", "idBoard": "board"}
+        )
+    )
     created = run(call("trello_create_card", list_name="Ideas", title="Dark mode", description="d"))
-    assert created["id"] == "c9"
-    updated = run(call("trello_update_card_description", card_id="c9", text="story"))
-    assert updated == {"id": "c9", "description_updated": True}
+    assert created["id"] == "0123456789abcdef0123456b"
+    updated = run(
+        call("trello_update_card_description", card_id="0123456789abcdef0123456b", text="story")
+    )
+    assert updated == {"id": "0123456789abcdef0123456b", "description_updated": True}

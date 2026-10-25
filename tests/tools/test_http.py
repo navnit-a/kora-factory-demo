@@ -64,3 +64,12 @@ def test_request_returns_the_response_on_success():
             return (await request(client, "Trello", "GET", "https://x.test/a", hint="")).json()
 
     assert asyncio.run(go()) == {"ok": True}
+
+
+def test_serve_binds_to_loopback_unless_told_otherwise(monkeypatch):
+    from factory_tools.serve import bind_host
+
+    monkeypatch.delenv("BIND_HOST", raising=False)
+    assert bind_host() == "127.0.0.1"
+    monkeypatch.setenv("BIND_HOST", "0.0.0.0")
+    assert bind_host() == "0.0.0.0"

@@ -73,9 +73,9 @@ Card run:
    like an unblock, and first. Then bugs, high severity before normal. Otherwise read up to
    three of the most promising stories and pick by value to an attendee, then by dependency: a story
    others build on goes first.
-5. Check your pick against every Definition of Ready row below, from its title, description and
-   comments; `trello_get_card` shows no labels or checklist, so judge the criteria rows by the
-   description and the type by the title and description. A card that fails a row stays put:
+5. Check your pick against every Definition of Ready row below, from what `trello_get_card`
+   shows. A `{BUG_PREFIX}` card is judged by rows 3, 4, 6 and 7 only; rows 1, 2 and 5 describe a
+   story. A card that fails a row stays put:
    comment one line on it naming the row it fails, once, and check the next pick; a card that
    cannot be built as written goes to Blocked.
 6. Move that one card to Ready, with a reason that says why it beats the others. A `{HIGH_SEVERITY}`
@@ -85,9 +85,10 @@ Stand-up run:
 1. List each of the six lists with limit 10, and read each Blocked card's latest reason.
 2. Post one plain-text message, under 600 characters: `Stand-up, <weekday> <date>` on the first
    line, then `Shipped:`, `In progress:`, `In review or testing:` and `Next up:` lines naming card
-   titles, then `Blocked:` naming each Blocked card with what it needs in a few words, from its
-   latest reason, and `Needs you:` listing what only the owner can settle (a card waiting on data
-   or a decision, a `{DEPENDS_ON}` note for the owner), each `none` when empty.
+   titles, then `Blocked:` naming at most three Blocked cards, then `and N more`, each with what it
+   needs in a few words, from its latest reason, and `Needs you:` listing what only the owner can
+   settle (a card waiting on data or a decision, a `{DEPENDS_ON}` note for the owner), each `none`
+   when empty.
 </how_to_work>
 
 <rules>

@@ -550,3 +550,38 @@ def test_scout_criteria_take_the_ready_shape():
     steps = flat(section(prompt("idea-scout"), "how_to_work"))
     assert "three to five lines" in steps
     assert "a tester can tick without reading the code" in steps
+
+
+def test_delivery_lead_readies_bugs_without_a_story():
+    steps = flat(section(prompt("delivery-lead"), "how_to_work"))
+    ready = steps[steps.index("Definition of Ready") : steps.index("Move that one card to Ready")]
+    assert f"A `{BUG_PREFIX}` card is judged by rows 3, 4, 6 and 7 only" in ready
+    assert "rows 1, 2 and 5 describe a story" in ready
+    assert DEFINITION_OF_READY[5].endswith("a Bug is judged by rows 3, 4, 6 and 7 only.")
+    assert len(DEFINITION_OF_READY[5].split()) < 30
+
+
+def test_tester_ticks_only_after_the_merge():
+    steps = flat(section(prompt("tester"), "how_to_work"))
+    tick = steps.index("`trello_check_item`")
+    assert steps.index("shows `MERGED`") < tick < steps.index("Move the card to Done")
+    failed = steps[steps.index("7. A failed criterion") :]
+    assert "tick nothing" in failed
+    assert "`trello_check_item`" not in steps[: steps.index("6. All criteria hold")]
+
+
+def test_stand_up_caps_the_blocked_line():
+    steps = flat(section(prompt("delivery-lead"), "how_to_work"))
+    stand_up = steps[steps.index("Stand-up run:") :]
+    blocked = stand_up[stand_up.index("`Blocked:`") : stand_up.index("`Needs you:`")]
+    assert "at most three" in blocked
+    assert "`and N more`" in blocked
+
+
+def test_product_owner_labels_hand_made_bug_and_spike_cards():
+    steps = flat(section(prompt("product-owner"), "how_to_work"))
+    label = steps[steps.index("5. ") : steps.index("6. ")]
+    assert "`trello_add_label`" in label
+    for phrase in ("`Bug`", "`Spike`", "`Story`", f"`{BUG_PREFIX}`", "`Spike:`"):
+        assert phrase in label, phrase
+    assert "add nothing" not in label

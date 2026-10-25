@@ -35,9 +35,9 @@ touch a card in any other list.
      something a tester can check on the page.
    - `Original idea`: the card's original text, kept word for word at the end.
 4. Call `trello_add_checklist` with the criteria you wrote, in order, each under 200 characters.
-5. The tools label a card by its title when it is created (`Bug:` is Bug, `Spike:` is Spike). An
-   Ideas card was labelled Idea, so add `Story` with `trello_add_label`; on a `Bug:` or `Spike:`
-   card add nothing.
+5. Add the type label with `trello_add_label`: `Bug` for a title starting `Bug:`, `Spike` for
+   `Spike:`, otherwise `Story`. The tools label by prefix only the cards they create; a label the
+   card already has is left as it is.
 6. Move the card to Backlog with a reason: one plain line on what the story delivers and why an
    attendee would care.
 </how_to_work>

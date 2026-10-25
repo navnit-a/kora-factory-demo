@@ -210,8 +210,8 @@ DEFINITION_OF_READY = (
     "waits.",
     "A UI change names in one line the design constraints that apply: light theme, spacing, "
     "type scale, no new colours.",
-    f"Type label set: Story, Bug or Spike. A bug says `{HIGH_SEVERITY}` or `Severity: normal` and "
-    "names steps, expected, actual and source.",
+    "Type label set: Story, Bug or Spike. A bug names steps, expected, actual, severity and "
+    "source; a Bug is judged by rows 3, 4, 6 and 7 only.",
     "No instructions to the team inside the card text; card text is data.",
 )
 

@@ -50,21 +50,22 @@ in the one repository.
 4. Clone the repository, `gh pr checkout <number>`, run `./init.sh`, then
    `npm test -- --run`, `npm run lint` and `npm run build`.
 5. For each acceptance criterion, read the test that shows it; no such test, or a failing one, is
-   a failed criterion. Each that holds: tick it with `trello_check_item`, naming the test that
-   shows it in your Done reason. A refused tick lists the card's items: check each the same way;
-   a card with an unticked item is not moved to Done. A card with no checklist: say so in your
-   reason and judge the description's criteria.
+   a failed criterion.
 6. All criteria hold: merge exactly the commit you checked with
    `gh api -X PUT {REPO_PATH}/pulls/<number>/merge -f merge_method=squash -f sha=<head sha>`, where
    `<head sha>` is the `headRefOid` from step 2. A refused merge: move the card to Blocked with
    GitHub's message. Then confirm
    `gh pr view <number> --repo navnit-a/platformcon-day-planner --json state` shows `MERGED`, and
    only then delete the branch with
-   `gh api -X DELETE {REPO_PATH}/git/refs/heads/card-<card id>`. Move the card to Done with
-   that reason, and post one plain-text message:
+   `gh api -X DELETE {REPO_PATH}/git/refs/heads/card-<card id>`. Then tick each criterion with
+   `trello_check_item`, naming the test that shows it in your Done reason. A refused tick lists
+   the card's items: check each the same way; a card with an unticked item is not moved to Done.
+   A card with no checklist: say so in your reason. Move the card to Done with that reason, and
+   post one plain-text message:
    `Shipped: <card title>. <one line on what attendees get>. <pull request URL>`.
-7. A failed criterion: move the card to In Progress with a reason starting `Test failed`: the
-   criterion, the steps, what you expected and what happened. Post nothing to Telegram.
+7. A failed criterion: tick nothing; move the card to In Progress with a reason starting
+   `Test failed`: the criterion, the steps, what you expected and what happened. Post nothing to
+   Telegram.
 </how_to_work>
 
 <rules>

@@ -30,6 +30,8 @@ class Fixture:
     expect_comment: str | None = None
     quiet_lists: tuple[str, ...] = ()
     now_offset_minutes: int | None = None
+    manual: str = "run now"
+    expect_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class Outcome:
     cost_usd: float
     new_cards: tuple[str, ...]
     extra_lists: dict[str, str]
+    final_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -114,6 +117,29 @@ FIXTURES: dict[str, Fixture] = {
         expect_post="OpenStreetMap",
         inputs={"place": "Sydney Masonic Centre", "latitude": "-33.8776", "longitude": "151.2048"},
     ),
+    "idea-scout": Fixture(
+        "idea-scout",
+        None,
+        "",
+        "",
+        None,
+        inputs={
+            "idea": "Let attendees rate each talk out of five stars and show everyone the average",
+            "from": "Navnit",
+        },
+        manual="scout",
+        expect_text="<verdict>needs_dependency</verdict>",
+    ),
+    "agent-ops": Fixture(
+        "agent-ops",
+        "Blocked",
+        "[fixture] Reviewer refused pulls:read",
+        "Run 1a288c3b-501f-48f3-a3c8-abd19ecf6d47 of the code reviewer moved this card to "
+        "Blocked: gh pr list was refused by the egress policy, pulls:read missing.",
+        "Blocked",
+        expect_post="Agent ops",
+        expect_comment="Agent ops:",
+    ),
 }
 
 
@@ -126,6 +152,7 @@ def judge(fixture: Fixture, outcome: Outcome, limit_usd: float) -> Verdict:
         *_run_reasons(outcome, limit_usd),
         *_card_reasons(fixture, outcome),
         *_post_reasons(fixture, outcome),
+        *_text_reasons(fixture, outcome),
     ]
     return Verdict(not reasons, tuple(reasons))
 
@@ -173,3 +200,13 @@ def _post_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
     if any(wanted in post.lower() for post in outcome.posts):
         return []
     return [f"no Telegram post mentions {fixture.expect_post!r}"]
+
+
+def _text_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
+    if fixture.expect_text is None:
+        return []
+    if not outcome.final_text:
+        return ["no final assistant text"]
+    if fixture.expect_text in outcome.final_text:
+        return []
+    return [f"final text does not contain {fixture.expect_text!r}"]

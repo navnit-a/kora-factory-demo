@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from factory_bridge.kora_runs import final_text
 from factory_demo.evaluation import FIXTURES, Fixture, Outcome, Verdict, is_fixture, judge
 from factory_demo.roster import by_slug
 from factory_demo.telegram_preview import parse_posts
@@ -70,14 +71,15 @@ async def evaluate(
     main_id, extra_ids = await _seed(fixture, board, card_id)
     before_new = await _titles(board, fixture)
     started = start or datetime.now(UTC)
-    trigger = _run_now_trigger(kora, spec.name)
+    trigger = _manual_trigger(kora, f"{spec.name}: {fixture.manual}")
     delivery = kora.fire_trigger(trigger["id"], run_inputs(fixture, started))
     run_id = await _run_id(kora, trigger["id"], delivery, sleep)
     run = await asyncio.to_thread(kora.wait_for_run, run_id, RUN_TIMEOUT_S)
     usage = await asyncio.to_thread(kora.run_usage, run_id)
     outcome = await _outcome(fixture, board, main_id, extra_ids, before_new, started, run, usage)
     posts = await _posts(fixture, fetch_preview, started, sleep)
-    outcome = Outcome(**{**outcome.__dict__, "posts": posts})
+    text = await _final_text(fixture, kora, run_id)
+    outcome = Outcome(**{**outcome.__dict__, "posts": posts, "final_text": text})
     verdict = judge(fixture, outcome, spec.run_limit_usd)
     filed = [cid for cid in await _titles(board, fixture) if cid not in before_new]
     await _clean_up(board, (*extra_ids.values(), *filed), main_id, card_id, keep)
@@ -136,8 +138,17 @@ async def _posts(
     return posts
 
 
-def _run_now_trigger(kora: Any, agent_name: str) -> dict:
-    name = f"{agent_name}: run now"
+async def _final_text(fixture: Fixture, kora: Any, run_id: str) -> str:
+    if fixture.expect_text is None:
+        return ""
+    events = await asyncio.to_thread(kora.run_events, run_id)
+    try:
+        return final_text(events)
+    except ValueError:
+        return ""
+
+
+def _manual_trigger(kora: Any, name: str) -> dict:
     matches = [t for t in kora.list_triggers() if t["name"] == name]
     if not matches:
         raise RuntimeError(f"no trigger {name!r}; run scripts/deploy-factory.py first")

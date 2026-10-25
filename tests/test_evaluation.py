@@ -16,11 +16,8 @@ def outcome(**changes) -> Outcome:
     return Outcome(**{**base.__dict__, **changes})
 
 
-NOT_EVALUATED_YET = {"idea-scout", "agent-ops"}
-
-
 def test_fixtures_cover_every_agent():
-    assert set(FIXTURES) == {spec.slug for spec in ROSTER} - NOT_EVALUATED_YET
+    assert set(FIXTURES) == {spec.slug for spec in ROSTER}
 
 
 def test_every_fixture_card_is_marked():
@@ -109,3 +106,28 @@ def test_developer_fixture_needs_a_pull_request_link():
     )
     assert not judge(fixture, without, 0.40).passed
     assert judge(fixture, with_link, 0.40).passed
+
+
+def test_judge_checks_the_final_text():
+    fixture = FIXTURES["idea-scout"]
+    quiet = {"card_list": None, "comments": (), "description": ""}
+    answer = "<title>Rate talks</title><verdict>needs_dependency</verdict><reason>votes</reason>"
+    assert judge(fixture, outcome(**quiet, final_text=answer), 0.15).passed
+    wrong = judge(fixture, outcome(**quiet, final_text="<verdict>buildable</verdict>"), 0.15)
+    assert wrong.reasons == ("final text does not contain '<verdict>needs_dependency</verdict>'",)
+    missing = judge(fixture, outcome(**quiet), 0.15)
+    assert missing.reasons == ("no final assistant text",)
+
+
+def test_agent_ops_fixture_needs_its_comment_and_post():
+    fixture = FIXTURES["agent-ops"]
+    good = outcome(
+        card_list="Blocked",
+        comments=("Agent ops: grant pulls:read to the code reviewer",),
+        posts=("Agent ops: the code reviewer needs pulls:read",),
+    )
+    assert judge(fixture, good, 0.40).passed
+    silent = outcome(card_list="Blocked", comments=("Looked at it",))
+    reasons = judge(fixture, silent, 0.40).reasons
+    assert "no comment contains 'Agent ops:'" in reasons
+    assert "no Telegram post mentions 'Agent ops'" in reasons

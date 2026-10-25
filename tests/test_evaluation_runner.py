@@ -67,6 +67,8 @@ class RunningKora(FakeKora):
         self.trello = trello
         self.act = act
         self.fired: tuple[tuple[str, dict], ...] = ()
+        self.events: tuple[dict, ...] = ()
+        self.events_read: tuple[str, ...] = ()
         self.triggers = (
             {"id": "t-po", "name": "Product owner: run now", "kind": "manual"},
             {"id": "t-sm", "name": "Scrum master: run now", "kind": "manual"},
@@ -85,6 +87,10 @@ class RunningKora(FakeKora):
 
     def run_usage(self, run_id):
         return {"spend_usd": 0.04}
+
+    def run_events(self, run_id, limit=400):
+        self.events_read = (*self.events_read, run_id)
+        return list(self.events)
 
 
 def product_owner_works(trello: FakeTrello) -> None:
@@ -109,6 +115,7 @@ async def test_evaluate_passes_a_working_product_owner():
     assert result.outcome.cost_usd == 0.04
     assert kora.fired == (("t-po", {}),)
     assert len(trello.archived) == 1
+    assert kora.events_read == ()
 
 
 async def test_evaluate_keeps_the_card_when_asked():
@@ -190,3 +197,61 @@ async def test_evaluate_waits_for_the_channel_preview_to_catch_up():
 
     result = await evaluate("scrum-master", kora, trello, preview, start=START, sleep=no_wait)
     assert result.verdict.passed, result.verdict.reasons
+
+
+SCOUT_ANSWER = (
+    "<title>Rate each talk</title><story>As an attendee</story><criteria>Given</criteria>"
+    "<dependencies>a ratings store</dependencies>"
+    "<verdict>needs_dependency</verdict><reason>needs somewhere to keep votes</reason>"
+)
+
+
+def answered(text: str, interrupted: bool = False) -> dict:
+    return {
+        "event_type": "message_complete",
+        "payload": {"text": text, "interrupted": interrupted},
+    }
+
+
+def scout_kora(trello: FakeTrello, events: tuple[dict, ...]) -> RunningKora:
+    kora = RunningKora(trello, lambda _: None)
+    kora.triggers = (
+        {"id": "t-run", "name": "Idea scout: run now", "kind": "manual"},
+        {"id": "t-scout", "name": "Idea scout: scout", "kind": "manual"},
+    )
+    kora.events = events
+    return kora
+
+
+async def test_runner_fires_the_named_manual_trigger():
+    trello = FakeTrello()
+    kora = scout_kora(trello, (answered(SCOUT_ANSWER),))
+    result = await evaluate("idea-scout", kora, trello, no_posts, start=START)
+    assert kora.fired == (
+        (
+            "t-scout",
+            {
+                "idea": "Let attendees rate each talk out of five stars and show everyone "
+                "the average",
+                "from": "Navnit",
+            },
+        ),
+    )
+    assert result.verdict.passed, result.verdict.reasons
+    assert trello.cards == {}
+
+
+async def test_runner_reads_final_text_from_events():
+    trello = FakeTrello()
+    kora = scout_kora(trello, (answered("thinking"), answered(SCOUT_ANSWER), answered("x", True)))
+    result = await evaluate("idea-scout", kora, trello, no_posts, start=START)
+    assert result.outcome.final_text == SCOUT_ANSWER
+    assert kora.events_read == ("r-1",)
+
+
+async def test_runner_names_a_run_without_final_text():
+    trello = FakeTrello()
+    kora = scout_kora(trello, ())
+    result = await evaluate("idea-scout", kora, trello, no_posts, start=START)
+    assert not result.verdict.passed
+    assert "no final assistant text" in result.verdict.reasons

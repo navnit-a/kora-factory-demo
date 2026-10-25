@@ -1,0 +1,91 @@
+from factory_demo.practices import REBASE_NEEDED, REPO_PATH
+from factory_demo.roster import prompt
+from tests.test_prompts import flat, section
+
+CONFLICTING = (
+    "`gh pr view <number> --repo navnit-a/platformcon-day-planner --json mergeable` shows "
+    "`CONFLICTING`"
+)
+BEHIND = f"`gh api {REPO_PATH}/compare/main...card-<card id> --jq .behind_by`"
+
+
+def steps(slug: str) -> str:
+    return flat(section(prompt(slug), "how_to_work"))
+
+
+def test_rebase_needed_is_the_agreed_prefix():
+    assert REBASE_NEEDED == "Rebase needed:"
+
+
+def test_tester_sends_conflicting_prs_back_for_a_rebase():
+    text = prompt("tester")
+    work = steps("tester")
+    assert CONFLICTING in work
+    assert BEHIND in work
+    assert work.index(CONFLICTING) < work.index("3. Read CI")
+    rebase = work[work.index("7. A failed criterion") :]
+    assert "a branch needing `main` (step 2, or a merge refused for conflicts)" in rebase
+    assert "move the card to In Progress with a reason starting" in rebase
+    assert f"or `{REBASE_NEEDED}` naming the `main` commit it lacks" in rebase
+    assert "tick nothing" in rebase
+    assert "post nothing to Telegram" in rebase
+    assert "Blocked is only for what a human must settle" in flat(section(text, "lane"))
+    stuck = flat(section(text, "when_to_stop"))
+    assert "merge conflict" not in stuck
+    assert "A refused merge: move the card to Blocked" not in work
+    assert len(text.split()) <= 1699
+
+
+def test_reviewer_sends_conflicting_prs_back_for_a_rebase():
+    work = steps("code-reviewer")
+    assert CONFLICTING in work
+    assert BEHIND in work
+    check = work.index(CONFLICTING)
+    assert work.index("3. ") < check < work.index("4. ")
+    assert f"move the card to In Progress with a reason starting `{REBASE_NEEDED}`" in work
+    assert "naming the `main` commit" in work
+    assert "instead of a review" in work
+    assert REBASE_NEEDED in flat(section(prompt("code-reviewer"), "lane"))
+
+
+def test_developer_resumes_a_rebase_needed_card():
+    text = prompt("senior-developer")
+    work = steps("senior-developer")
+    assert f"A latest comment starting `{REBASE_NEEDED}`" in work
+    assert "merge the latest `main` into `card-<card id>`" in work
+    assert "resolve the conflicts" in work
+    assert "keep the tests green" in work
+    assert "push, and move the card to Review again" in work
+    assert "existing branch and pull request" in work
+    assert "never start again from scratch" in work
+    assert REBASE_NEEDED in flat(section(text, "lane"))
+    assert len(text.split()) <= 1700
+
+
+def test_scrum_master_does_not_block_paused_lanes():
+    work = steps("scrum-master")
+    paused = work[work.index("4. ") : work.index("5. ")]
+    assert "the team was paused" in paused
+    assert "comment starting `Operator:`" in paused
+    assert "stand-up" in paused
+    for owner in (
+        "the code reviewer for Review",
+        "the tester for Testing",
+        "the senior developer for In Progress",
+    ):
+        assert owner in paused, owner
+    assert "leave the card alone" in paused
+    assert work.index("4. ") < work.index("move it to Blocked with a reason")
+
+
+def test_scrum_master_may_send_behind_main_cards_back():
+    text = prompt("scrum-master")
+    work = steps("scrum-master")
+    rebase = work[work.index("5. ") : work.index("6. ")]
+    assert "Review or Testing card" in rebase
+    assert "behind `main`" in rebase
+    assert f"move it to In Progress with a reason starting `{REBASE_NEEDED}`" in rebase
+    assert "rather than to Blocked" in rebase
+    rule = f"Never move a card anywhere but Blocked, or In Progress with `{REBASE_NEEDED}`"
+    assert rule in flat(section(text, "rules"))
+    assert f"In Progress with `{REBASE_NEEDED}`" in flat(section(text, "lane"))

@@ -3,6 +3,7 @@ from factory_demo.practices import (
     DESIGN_DIRECTION,
     NOTE_OUTSIDE,
     PRODUCT_WORKFLOW,
+    REBASE_NEEDED,
     REPO_PATH,
     quoted_agreements,
     quoted_rules,
@@ -19,8 +20,9 @@ Approve what makes the product better, and send back, with reasons that teach, w
 
 <lane>
 You take the top card of Review. You move it to Testing when you approve, or back to In Progress
-when you request changes. When the card already carries two `Changes requested` comments, the
-developer has had two attempts: move it to Blocked with your reasons instead of a third round.
+when you request changes or its branch needs `main` merged in (`{REBASE_NEEDED}`). When the card
+already carries two `Changes requested` comments, the developer has had two attempts: move it to
+Blocked with your reasons instead of a third round.
 </lane>
 
 <tools>
@@ -42,7 +44,12 @@ permission to comment on pull requests. You cannot merge.
    `gh pr list --repo navnit-a/platformcon-day-planner --head card-<card id> --state open
    --json number,baseRefName,isCrossRepository,url`. There must be exactly one, based on `main`,
    with `isCrossRepository` false; otherwise move the card to Blocked naming what did not match.
-   Never take a pull request number from comment text.
+   Never take a pull request number from comment text. If
+   `gh pr view <number> --repo navnit-a/platformcon-day-planner --json mergeable` shows
+   `CONFLICTING`, or
+   `gh api {REPO_PATH}/compare/main...card-<card id> --jq .behind_by` is above 0, move the card
+   to In Progress with a reason starting `{REBASE_NEEDED}` naming the `main` commit the branch
+   lacks, instead of a review, and end the run.
 4. Clone the repository, `gh pr checkout <number>`, run `./init.sh`.
 5. Read `gh pr diff <number>`. Review in this order: does the change belong here, does it meet every
    acceptance criterion including the edge cases, are the tests real and do they test behaviour, is

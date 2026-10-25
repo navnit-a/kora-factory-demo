@@ -56,7 +56,7 @@ async def trello_move_card(
         str, Field(min_length=3, description="Why the card moves; posted as a comment.")
     ],
 ) -> dict:
-    """Move a card to another list. The reason is posted as a comment first, so the trail is complete."""
+    """Move a card to another list, posting the reason as a comment first."""
     trello = client()
     await trello.comment(card_id, reason)
     moved = await trello.move(card_id, to_list)

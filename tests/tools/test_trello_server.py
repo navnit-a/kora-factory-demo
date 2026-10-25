@@ -53,7 +53,7 @@ def test_tools_are_namespaced_and_annotated():
 def test_every_tool_describes_itself_and_its_parameters():
     for tool in run(tools()).values():
         assert tool.description and len(tool.description) > 30
-        for name, prop in tool.inputSchema.get("properties", {}).items():
+        for name, prop in tool.input_schema.get("properties", {}).items():
             assert prop.get("description"), f"{tool.name}.{name} has no description"
 
 

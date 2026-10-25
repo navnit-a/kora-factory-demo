@@ -30,6 +30,7 @@ packages = ["src/factory_demo", "src/factory_tools"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning"]
 
 [tool.ruff]
 line-length = 100

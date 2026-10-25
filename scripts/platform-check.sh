@@ -9,10 +9,10 @@ bad() { echo "FAIL $1"; fail=1; }
 not_ready=$(kubectl get pods -n kora-system --no-headers 2>/dev/null | awk '$3 != "Running" && $3 != "Completed"' | wc -l | tr -d ' ')
 [ "${not_ready:-1}" = "0" ] && ok "kora-system pods ready" || bad "kora-system pods not all ready ($not_ready)"
 
-kubectl get inferenceprovider ailabs -n kora-system >/dev/null 2>&1 && ok "provider ailabs registered" || bad "provider ailabs missing"
+kubectl get inferenceprovider ailabs-claude -n kora-system >/dev/null 2>&1 && ok "provider ailabs-claude registered" || bad "provider ailabs-claude missing"
 
 models=$(uv run python -c "from factory_demo.kora_api import load_client; print(' '.join(sorted(m.get('id','') for m in load_client().list_models())))" 2>/dev/null)
-for m in claude-haiku-5-5 claude-sonnet-5-5 claude-fable-5-1; do
+for m in anthropic/claude-haiku-5-5 anthropic/claude-sonnet-5-5 anthropic/claude-fable-5-1; do
   case " $models " in *" $m "*) ok "model $m listed";; *) bad "model $m not listed";; esac
 done
 

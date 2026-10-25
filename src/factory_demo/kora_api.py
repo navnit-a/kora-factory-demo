@@ -38,7 +38,20 @@ class KoraClient:
         return response.json() if response.content else {}
 
     def list_models(self) -> list[dict]:
-        return _as_list(self._request("GET", "/api/v1/models"))
+        return _as_list(self._request("GET", "/v1/models"))
+
+    def list_virtual_models(self) -> list[dict]:
+        return _as_list(self._request("GET", "/v1/catalog/virtual-models"))
+
+    def create_virtual_model(self, request: dict) -> dict:
+        return self._request("POST", "/v1/catalog/virtual-models", request)
+
+    def update_virtual_model(self, virtual_model_id: str, request: dict) -> dict:
+        return self._request("PUT", f"/v1/catalog/virtual-models/{virtual_model_id}", request)
+
+    def set_price_override(self, provider: str, model_id: str, request: dict) -> dict:
+        path = f"/v1/catalog/pricing/{provider}/{model_id}/override"
+        return self._request("PUT", path, request)
 
     def list_environments(self) -> list[dict]:
         return _as_list(self._request("GET", "/api/v1/environments"))

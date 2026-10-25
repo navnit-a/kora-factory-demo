@@ -21,7 +21,7 @@ def test_start_run_posts_agent_and_message():
 
 @respx.mock
 def test_401_raises_auth_error_with_refresh_hint():
-    respx.get(f"{BASE}/api/v1/models").mock(return_value=httpx.Response(401))
+    respx.get(f"{BASE}/v1/models").mock(return_value=httpx.Response(401))
     with pytest.raises(KoraAuthError, match="make auth-refresh"):
         KoraClient(BASE, "tok").list_models()
 

@@ -21,7 +21,7 @@ def test_list_endpoints_unwrap_an_items_envelope():
     respx.get(f"{BASE}/api/v1/agent-types").mock(
         return_value=httpx.Response(200, json=[{"slug": "smoke"}])
     )
-    respx.get(f"{BASE}/api/v1/models").mock(return_value=httpx.Response(200, json={"total": 0}))
+    respx.get(f"{BASE}/v1/models").mock(return_value=httpx.Response(200, json={"total": 0}))
     assert client().list_environments() == [{"slug": "node-web"}]
     assert client().list_agents() == [{"slug": "smoke"}]
     assert client().list_models() == []

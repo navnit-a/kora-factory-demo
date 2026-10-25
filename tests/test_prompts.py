@@ -433,22 +433,41 @@ def test_scout_owner_and_developer_know_the_feeds():
     for slug in ("idea-scout", "product-owner", "senior-developer"):
         text = prompt(slug)
         assert FEED_FACTS in text
-        assert "public/data/trains.json" in text and "src/feed.ts" in text and "VenueMap" in text
+        assert TRAINS_PATH in text and LUNCH_PATH in text and "tile.openstreetmap.org" in text
         assert len(text.split()) <= word_cap(slug)
 
 
 def test_feed_facts_name_the_files_parser_map_and_owners():
     facts = flat(FEED_FACTS)
-    for name in (TRAINS_PATH, LUNCH_PATH, "src/feed.ts", "src/venue.ts", "src/VenueMap.tsx"):
+    for name in (TRAINS_PATH, LUNCH_PATH):
         assert f"`{name}`" in facts, name
-    for export in ("loadFeeds", "parseTrains", "parseLunch", "formatUpdated", "VENUE", "STATIONS"):
-        assert f"`{export}`" in facts, export
-    assert (
-        "The data files are written only by the trains and lunch agents through their own pull "
-        "requests; never edit them by hand; a section reads them at runtime with "
-        "`loadFeeds(import.meta.env.BASE_URL)`"
-    ) in facts
-    assert "Use `VenueMap` for any map; no other map library and no API keys" in facts
+    for fact in (
+        "written only by the trains and lunch agents through their own pull requests",
+        "never edit them by hand",
+        "exactly three",
+        '``fetch(`${import.meta.env.BASE_URL}data/<file>`, { cache: "no-store" })``',
+        "validates the shape",
+        "Sydney time (24-hour)",
+        "`attribution`",
+        '"not available yet"',
+        "when the file is missing",
+        "`lunch.json` is until its first data pull request merges",
+        "fails to parse",
+        "Sydney Masonic Centre, 66 Goulburn Street, lat -33.8781, lon 151.2090",
+        "Museum, 3 min walk, lines T2, T3, T8",
+        "Central, 9 min walk, lines T1, T2, T3, T4, T8, T9",
+        "`leaflet` 1.9.4",
+        "`@types/leaflet` 1.9.22",
+        "`https://tile.openstreetmap.org/{z}/{x}/{y}.png`",
+        "Map data © OpenStreetMap contributors",
+        "no Google Maps",
+        "no API keys",
+        "only as text, never as HTML, including Leaflet tooltips",
+        "scroll-wheel zoom off on a phone page",
+    ):
+        assert fact in facts, fact
+    for gone in ("src/feed.ts", "src/venue.ts", "VenueMap"):
+        assert gone not in facts, gone
 
 
 def test_scout_treats_the_agent_feeds_as_part_of_the_app():

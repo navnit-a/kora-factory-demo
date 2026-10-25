@@ -21,13 +21,21 @@ and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on
 confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
 Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""
 
-FEED_FACTS = f"""Live data for sections comes from `{TRAINS_PATH}` (train disruptions) and
-`{LUNCH_PATH}` (three lunch picks near the venue), parsed by `src/feed.ts` (`loadFeeds`,
-`parseTrains`, `parseLunch`, `formatUpdated`); `src/venue.ts` has `VENUE` and `STATIONS`;
-`src/VenueMap.tsx` has `VenueMap`, the leaflet map. The data files are written only by the
-trains and lunch agents through their own pull requests; never edit them by hand; a section
-reads them at runtime with `loadFeeds(import.meta.env.BASE_URL)`. Use `VenueMap` for any map;
-no other map library and no API keys."""
+FEED_FACTS = f"""Live data: `{TRAINS_PATH}` (`updated`, `status` `normal` or
+`disruptions`, `lines` of `line` and `summary`, `more`, `attribution`) and `{LUNCH_PATH}`
+(`updated`, `place`, exactly three `picks` of `name`, `kind`, `cuisine`, `distance_m`, `street`,
+`lat`, `lon`, `reason`, then `attribution`), written only by the trains and lunch agents through
+their own pull requests; never edit them by hand. A section reads its file at runtime with
+``fetch(`${{import.meta.env.BASE_URL}}data/<file>`, {{ cache: "no-store" }})``, validates the
+shape, shows `updated` in Sydney time (24-hour) and the `attribution` line, and when the file is
+missing (as `lunch.json` is until its first data pull request merges) or fails to parse shows a
+calm "not available yet" state, never a broken page. Venue: Sydney Masonic Centre, 66 Goulburn
+Street, lat -33.8781, lon 151.2090. Nearest stations: Museum, 3 min walk, lines T2, T3, T8;
+Central, 9 min walk, lines T1, T2, T3, T4, T8, T9. A map card may add `leaflet` 1.9.4 (exact
+version; `@types/leaflet` 1.9.22), tiles `https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png`
+and "Map data © OpenStreetMap contributors" visible under the map; no Google Maps, no API keys.
+Render place names, which come from OpenStreetMap through an agent, only as text, never as HTML,
+including Leaflet tooltips; scroll-wheel zoom off on a phone page."""
 
 TRAINS_EXAMPLE = json.dumps(
     {

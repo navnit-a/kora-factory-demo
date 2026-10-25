@@ -1,9 +1,12 @@
+import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
 from factory_demo.evaluation import FIXTURES
-from factory_demo.evaluation_runner import evaluate, run_inputs
+from factory_demo.evaluation_runner import evaluate, list_open_prs, run_inputs
 from tests.fake_kora import FakeKora
 
 START = datetime(2026, 10, 25, 9, 0, tzinfo=UTC)
@@ -371,3 +374,64 @@ async def test_runner_skips_pull_requests_for_a_card_agent():
     result = await evaluate("product-owner", kora, trello, no_posts, start=START, list_prs=list_prs)
     assert seen == []
     assert result.outcome.pr_urls == ()
+
+
+async def test_runner_cleans_up_when_listing_pull_requests_fails(monkeypatch):
+    with_head = replace(FIXTURES["product-owner"], expect_pr_head="agent-trains")
+    monkeypatch.setitem(FIXTURES, "product-owner", with_head)
+    trello = FakeTrello()
+    kora = RunningKora(trello, product_owner_works)
+
+    def broken(head: str) -> list[str]:
+        raise RuntimeError(f"gh pr list failed for {head}: HTTP 401")
+
+    with pytest.raises(RuntimeError, match="agent-trains: HTTP 401"):
+        await evaluate("product-owner", kora, trello, no_posts, start=START, list_prs=broken)
+    assert len(trello.archived) == 1
+
+
+def test_list_open_prs_asks_gh_for_the_open_pull_requests_of_a_head():
+    calls = []
+
+    def run(command, **options):
+        calls.append((command, options))
+        stdout = f'[{{"url": "{TRAINS_PR}"}}, {{"number": 3}}]'
+        return SimpleNamespace(stdout=stdout)
+
+    assert list_open_prs("agent-trains", run=run) == [TRAINS_PR]
+    assert calls == [
+        (
+            [
+                "gh",
+                "pr",
+                "list",
+                "--repo",
+                "navnit-a/platformcon-day-planner",
+                "--head",
+                "agent-trains",
+                "--state",
+                "open",
+                "--json",
+                "url",
+            ],
+            {"capture_output": True, "text": True, "check": True},
+        )
+    ]
+
+
+def test_list_open_prs_names_the_head_and_gh_error():
+    def run(command, **options):
+        raise subprocess.CalledProcessError(1, command, stderr="HTTP 401: Bad credentials\n")
+
+    with pytest.raises(RuntimeError) as raised:
+        list_open_prs("agent-lunch", run=run)
+    assert str(raised.value) == "gh pr list failed for agent-lunch: HTTP 401: Bad credentials"
+
+
+def test_list_open_prs_says_when_gh_is_missing():
+    def run(command, **options):
+        raise FileNotFoundError("gh")
+
+    with pytest.raises(RuntimeError) as raised:
+        list_open_prs("agent-trains", run=run)
+    assert str(raised.value) == "gh pr list failed for agent-trains: gh is not installed"

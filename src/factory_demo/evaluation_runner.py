@@ -2,7 +2,7 @@ import asyncio
 import json
 import subprocess
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -54,26 +54,28 @@ class EvaluationBoard:
         await self.trello.archive(card_id)
 
 
-def list_open_prs(head: str) -> list[str]:
-    listed = subprocess.run(
-        [
-            "gh",
-            "pr",
-            "list",
-            "--repo",
-            PRODUCT_REPO,
-            "--head",
-            head,
-            "--state",
-            "open",
-            "--json",
-            "url",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return [pr["url"] for pr in json.loads(listed.stdout)]
+def list_open_prs(head: str, run: Callable[..., Any] = subprocess.run) -> list[str]:
+    command = [
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        PRODUCT_REPO,
+        "--head",
+        head,
+        "--state",
+        "open",
+        "--json",
+        "url",
+    ]
+    try:
+        listed = run(command, capture_output=True, text=True, check=True)
+    except FileNotFoundError as error:
+        raise RuntimeError(f"gh pr list failed for {head}: gh is not installed") from error
+    except subprocess.CalledProcessError as error:
+        cause = (error.stderr or "").strip() or f"exit {error.returncode}"
+        raise RuntimeError(f"gh pr list failed for {head}: {cause}") from error
+    return [pr["url"] for pr in json.loads(listed.stdout) if "url" in pr]
 
 
 def run_inputs(fixture: Fixture, start: datetime) -> dict[str, str]:
@@ -108,13 +110,11 @@ async def evaluate(
     outcome = await _outcome(fixture, board, main_id, extra_ids, before_new, started, run, usage)
     posts = await _posts(fixture, fetch_preview, started, sleep)
     text = await _final_text(fixture, kora, run_id)
-    pr_urls = await _pr_urls(fixture, list_prs)
-    outcome = Outcome(
-        **{**outcome.__dict__, "posts": posts, "final_text": text, "pr_urls": pr_urls}
-    )
-    verdict = judge(fixture, outcome, spec.run_limit_usd)
     filed = [cid for cid in await _titles(board, fixture) if cid not in before_new]
     await _clean_up(board, (*extra_ids.values(), *filed), main_id, card_id, keep)
+    pr_urls = await _pr_urls(fixture, list_prs)
+    outcome = replace(outcome, posts=posts, final_text=text, pr_urls=pr_urls)
+    verdict = judge(fixture, outcome, spec.run_limit_usd)
     return EvaluationResult(verdict, outcome, main_id, run_id)
 
 

@@ -86,3 +86,10 @@ committed, pasted into a prompt, or shown on screen.
   sorts by distance itself.
 - Foundry rejects some Claude Code requests with `thinking.adaptive.display`, because Claude Code asks
   for the `updates` display mode, a beta Foundry does not accept yet. Runs still finish.
+
+## Product repo
+
+[navnit-a/platformcon-day-planner](https://github.com/navnit-a/platformcon-day-planner), seeded on
+25 Oct 2026 at commit `5ea7b4d` with the 22 published PlatformCon Sydney sessions, `DESIGN.md`,
+`CLAUDE.md`, `init.sh` and CI ([first run, green](https://github.com/navnit-a/platformcon-day-planner/actions/runs/40152486071)).
+The team agents work on it one card per branch and pull request.

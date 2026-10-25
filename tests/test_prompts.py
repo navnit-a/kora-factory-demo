@@ -3,6 +3,14 @@ import re
 import pytest
 
 from factory_demo.evaluation import FIXTURES
+from factory_demo.feeds import (
+    DATA_PR_RULE,
+    LUNCH_BRANCH,
+    LUNCH_PATH,
+    TRAINS_BRANCH,
+    TRAINS_PATH,
+)
+from factory_demo.feeds import numbered as numbered_step
 from factory_demo.practices import (
     AGENT_OPS_PREFIX,
     AGREEMENTS_BY_ROLE,
@@ -203,6 +211,20 @@ def test_tester_merges_only_data_files_from_agent_branches():
     assert "gh pr view <number> --repo navnit-a/platformcon-day-planner --json files" in text
     assert "merge_method=squash" in text
     assert len(text.split()) <= TESTER_WORD_CAP
+
+
+def test_tester_step_zero_merges_data_prs_based_on_main_at_their_head():
+    work = section(prompt("tester"), "how_to_work")
+    assert work.lstrip("\n").startswith(numbered_step("0. ", DATA_PR_RULE))
+    rule = flat(DATA_PR_RULE)
+    assert "--json number,baseRefName,headRefOid,isCrossRepository" in rule
+    assert "`baseRefName` is `main`" in rule
+    assert "--json files,changedFiles` shows `changedFiles` 1" in rule
+    for branch, path in ((TRAINS_BRANCH, TRAINS_PATH), (LUNCH_BRANCH, LUNCH_PATH)):
+        assert f"`{branch}` with `{path}`" in rule
+    assert "exactly `<file>`" in rule
+    assert "step 6's merge with `sha=<headRefOid>`" in rule
+    assert rule.index("step 6's merge") < rule.index("confirm `MERGED`")
 
 
 @pytest.mark.parametrize("slug", PROMPTED)

@@ -9,12 +9,14 @@ TRAINS_BRANCH = "agent-trains"
 LUNCH_BRANCH = "agent-lunch"
 DATA_BRANCHES = (TRAINS_BRANCH, LUNCH_BRANCH)
 PRODUCT_REPO = REPO_PATH.removeprefix("repos/")
-DATA_PR_RULE = f"""Before the card work, in a sandbox, merge data pull requests. For `<head>`
-each of {" and ".join(f"`{branch}`" for branch in DATA_BRANCHES)}:
+DATA_FILES = ((TRAINS_BRANCH, TRAINS_PATH), (LUNCH_BRANCH, LUNCH_PATH))
+DATA_PR_RULE = f"""Before the card work, in a sandbox, merge data pull requests. For each
+`<head>` with its one `<file>`, {" and ".join(f"`{b}` with `{f}`" for b, f in DATA_FILES)}:
 `gh pr list --repo {PRODUCT_REPO} --head <head> --state open
---json number,headRefOid,isCrossRepository`. Merge one only when `isCrossRepository` is false,
-`gh pr view <number> --repo {PRODUCT_REPO} --json files --jq '.files[].path'`
-lists only paths under `{DATA_DIR}`, step 3's CI (`--branch <head>`) passed on its
+--json number,baseRefName,headRefOid,isCrossRepository`. Merge one only when `baseRefName` is
+`main`, `isCrossRepository` is false,
+`gh pr view <number> --repo {PRODUCT_REPO} --json files,changedFiles` shows `changedFiles` 1
+and that file's path exactly `<file>`, step 3's CI (`--branch <head>`) passed on its
 `headRefOid` and `mergeable` is not `CONFLICTING`: step 6's merge with `sha=<headRefOid>`,
 confirm `MERGED`, then `gh api -X DELETE {REPO_PATH}/git/refs/heads/<head>`.
 Otherwise leave it; say why in your reply. No card, checklist or Telegram post for these."""

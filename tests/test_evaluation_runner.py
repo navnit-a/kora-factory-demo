@@ -206,7 +206,7 @@ def support_files_a_bug(trello: FakeTrello) -> None:
     trello.cards = {
         **trello.cards,
         "b" * 24: {
-            "title": "Bug: footer year",
+            "title": "Bug: session dialog cannot be closed with the keyboard",
             "list": "Backlog",
             "description": "",
             "comments": (),
@@ -223,7 +223,8 @@ async def test_evaluate_archives_the_bug_the_support_agent_filed():
 
     async def bug_post() -> str:
         return (
-            '<div data-post="c/1"><div class="tgme_widget_message_text">Bug raised: footer year'
+            '<div data-post="c/1"><div class="tgme_widget_message_text">'
+            "Bug raised: session dialog traps the keyboard (high)"
             '</div><time datetime="2026-10-25T09:03:00+00:00"></time></div>'
         )
 

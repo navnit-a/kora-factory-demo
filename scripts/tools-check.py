@@ -17,7 +17,7 @@ from factory_demo.kora_api import (  # noqa: E402
     default_ca_file,
     read_credentials,
 )
-from factory_demo.tools_check import SERVERS, missing_tools  # noqa: E402
+from factory_demo.tools_check import SERVERS, missing_tools, reachable_line  # noqa: E402
 
 TIMEOUT_S = 60.0
 
@@ -49,7 +49,7 @@ def main() -> int:
     missing = missing_tools(listed)
     for tool in missing:
         print(f"FAIL {tool} not listed by the gateway")
-    print(json.dumps({"missing": missing}) if missing else "ok   all nine tools reachable")
+    print(json.dumps({"missing": missing}) if missing else reachable_line())
     return 1 if missing else 0
 
 

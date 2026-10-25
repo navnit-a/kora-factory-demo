@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from factory_demo.evaluation import FIXTURES, Outcome, is_fixture, judge
 from factory_demo.roster import ROSTER
 
@@ -101,8 +103,8 @@ def test_support_fixture_needs_a_new_bug_and_a_filed_comment():
     good = outcome(
         card_list="Done",
         comments=("Filed as https://trello.com/c/abc",),
-        posts=("Bug raised: footer year (normal)",),
-        new_cards=("Bug: footer says 2025",),
+        posts=("Bug raised: session dialog traps the keyboard (high)",),
+        new_cards=("Bug: session dialog cannot be closed with the keyboard",),
         labels=("Bug", "High severity"),
         checklist=(),
     )
@@ -172,8 +174,41 @@ def test_support_fixture_needs_a_bug_label_and_high_severity_on_the_new_card():
     filed = outcome(
         card_list="Done",
         comments=("Filed as https://trello.com/c/abc",),
-        posts=("Bug raised: footer year (high)",),
-        new_cards=("Bug: footer says 2025",),
+        posts=("Bug raised: session dialog traps the keyboard (high)",),
+        new_cards=("Bug: session dialog cannot be closed with the keyboard",),
         labels=("Bug",),
     )
-    assert judge(fixture, filed, 0.20).reasons == ("missing label 'High severity'",)
+    assert judge(fixture, filed, 0.20).reasons == (
+        "missing label 'High severity' on the filed card",
+    )
+
+
+def test_filed_card_look_reasons_name_the_filed_card():
+    fixture = replace(
+        FIXTURES["support"], expect_cover="red", expect_checklist_min=1, expect_labels=()
+    )
+    filed = outcome(
+        card_list="Done",
+        comments=("Filed as x",),
+        posts=("Bug raised",),
+        new_cards=("Bug: x",),
+        checklist=(),
+    )
+    assert judge(fixture, filed, 0.20).reasons == (
+        "cover is none, expected red on the filed card",
+        "checklist has 0 items, expected at least 1 on the filed card",
+    )
+
+
+def test_no_filed_card_gives_one_reason():
+    fixture = FIXTURES["support"]
+    silent = outcome(card_list="Done", comments=("Filed as x",), posts=("Bug raised",), labels=())
+    assert judge(fixture, silent, 0.20).reasons == ("no new card titled 'Bug:'",)
+
+
+def test_support_fixture_notes_a_high_severity_symptom():
+    assert FIXTURES["support"].comment == (
+        "Found outside this card: the session detail dialog cannot be closed with the keyboard, "
+        "so an attendee using only a keyboard is stuck on it; open any session and press Escape "
+        "to see it."
+    )

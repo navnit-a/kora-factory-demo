@@ -45,7 +45,7 @@ First time, or after `make reset`:
     `--dry-run`. It names the labels and gives every open card its lane's cover and sticker, its
     labels and, where the description has criteria, its Acceptance criteria checklist. A second run
     touches only cards that have drifted.
-12. `scripts/platform-check.sh` must print only `ok` lines, including all nine tools listed through
+12. `scripts/platform-check.sh` must print only `ok` lines, including all thirteen tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
 13. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
@@ -156,8 +156,9 @@ A card is done when the tester can move it from Testing to Done:
 - one `Shipped:` line in Telegram with the pull request URL, and the card shows it: green cover,
   check sticker, checklist complete, pull request link in the last comment
 
-Flow: Ready holds at most two cards, and In Progress, Review and Testing one each per role. Bugs come
-first, high severity before normal. The delivery lead owns Blocked and brings a card back with
+Flow: Ready holds at most two cards, and In Progress, Review and Testing one each, and the delivery
+lead feeds Ready only when it has room. Bugs come first, high severity before normal, and a
+high-severity bug may go over the Ready limit. The delivery lead owns Blocked and brings a card back with
 `Unblocked:`; a stall over 45 minutes is the scrum master's to raise. After two rounds of changes
 requested the reviewer blocks with the open question. Every move carries a reason, every agent says
 what it checked, and a criterion the data cannot meet is said so on the card, never faked.

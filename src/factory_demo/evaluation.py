@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 FIXTURE_TAG = "[fixture]"
 SETTLED = frozenset({"idle", "completed"})
 COMPLETE = "complete"
+FILED_CARD = " on the filed card"
 STORY = (
     "As an attendee at PlatformCon Sydney, I want to see how many sessions are on the day, so "
     "that I know how full it is at a glance.\n\nAcceptance criteria\n"
@@ -121,8 +122,9 @@ FIXTURES: dict[str, Fixture] = {
         STORY,
         "Done",
         expect_post="bug raised",
-        comment="Found outside this card: the footer says 2025 instead of 2026 on the schedule "
-        "page; open the app and scroll to the bottom to see it.",
+        comment="Found outside this card: the session detail dialog cannot be closed with the "
+        "keyboard, so an attendee using only a keyboard is stuck on it; open any session and "
+        "press Escape to see it.",
         expect_new_card="Bug:",
         expect_labels=("Bug", "High severity"),
         expect_comment="Filed as",
@@ -203,9 +205,7 @@ def _card_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
         reasons.append("agent left no comment on the card")
     if fixture.expect_comment and not any(fixture.expect_comment in c for c in outcome.comments):
         reasons.append(f"no comment contains {fixture.expect_comment!r}")
-    if fixture.expect_new_card and not any(
-        t.startswith(fixture.expect_new_card) for t in outcome.new_cards
-    ):
+    if fixture.expect_new_card and not _filed(fixture, outcome):
         reasons.append(f"no new card titled {fixture.expect_new_card!r}")
     reasons += [
         f"{title!r} is in {outcome.extra_lists.get(title)}, expected {expected}"
@@ -216,10 +216,19 @@ def _card_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
 
 
 def _look_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
+    if fixture.expect_new_card and not _filed(fixture, outcome):
+        return []
     missing = [
         f"missing label '{name}'" for name in fixture.expect_labels if name not in outcome.labels
     ]
-    return [*missing, *_cover_reasons(fixture, outcome), *_checklist_reasons(fixture, outcome)]
+    reasons = [*missing, *_cover_reasons(fixture, outcome), *_checklist_reasons(fixture, outcome)]
+    suffix = FILED_CARD if fixture.expect_new_card else ""
+    return [reason + suffix for reason in reasons]
+
+
+def _filed(fixture: Fixture, outcome: Outcome) -> bool:
+    prefix = fixture.expect_new_card or ""
+    return any(title.startswith(prefix) for title in outcome.new_cards)
 
 
 def _cover_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:

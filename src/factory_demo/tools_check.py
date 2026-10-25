@@ -25,6 +25,10 @@ def expected_tool_names() -> set[str]:
     return {tool for tools in TOOLS_BY_SERVER.values() for tool in tools}
 
 
+def reachable_line() -> str:
+    return f"ok   all {len(expected_tool_names())} tools reachable"
+
+
 def missing_tools(listed: dict[str, list[str]]) -> list[str]:
     present = {tool for tools in listed.values() for tool in tools}
     return sorted(expected_tool_names() - present)

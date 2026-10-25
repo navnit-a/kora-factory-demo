@@ -1,0 +1,15 @@
+apiVersion: runkora.io/v1alpha1
+kind: InferenceProvider
+metadata:
+  name: ailabs
+  namespace: kora-system
+spec:
+  type: azure
+  displayName: ClearRoute Foundry
+  azure:
+    endpoint: https://${AILABS_FOUNDRY_RESOURCE}.services.ai.azure.com
+    apiVersion: "2024-10-21"
+    anthropicEndpoint: https://${AILABS_FOUNDRY_RESOURCE}.services.ai.azure.com/anthropic
+    apiKeySecretRef:
+      name: azure-ailabs
+      key: apiKey

@@ -1,0 +1,15 @@
+{
+  "board_id": "6add46b21f20bb951a6cfb19",
+  "board_url": "https://trello.com/b/yyC9BI82",
+  "workspace_id": "60bd2cc6016d5d437ccad31b",
+  "lists": {
+    "Ideas": "6add46c9a53f4fa5e0714d50",
+    "Backlog": "6add46c9b62138b25bd857d8",
+    "Ready": "6add46cac1a9e35a3726f55c",
+    "In Progress": "6add46cadf3651c366002a5f",
+    "Review": "6add46ca63bc45a4270571f4",
+    "Testing": "6add46cb3e526f39cca91752",
+    "Done": "6add46cbe58d39d4ba9110ca",
+    "Blocked": "6add46ccd46a0f13bf0e2bf9"
+  }
+}

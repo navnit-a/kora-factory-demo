@@ -1,0 +1,6 @@
+.env
+secrets/
+deploy/generated/
+.venv/
+__pycache__/
+shots/

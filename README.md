@@ -39,13 +39,14 @@ First time, or after `make reset`:
 10. `scripts/deploy-tools.sh` builds the tool-server image, pushes it to the cluster's registry, applies
     the `factory-tools` Secret and the four servers, and waits for them. kora registers each as an
     `MCPServer`; `kubectl get mcpservers -n kora-tenant-example` must show all four `Aggregated`.
-11. `uv run python scripts/dress-board.py --dry-run` prints the plan and writes nothing: the labels
-    it would name or create, the cards whose plain colour labels gain a name, and how many cards it
-    would dress and checklists it would add. When the plan looks right, run it again without
-    `--dry-run`. It names the labels and gives every open card its lane's cover and sticker, its
-    labels and, where the description has criteria, its Acceptance criteria checklist. A second run
-    touches only cards that have drifted. If it stops on a Trello rate limit, run it again; it is
-    idempotent.
+11. `uv run python scripts/dress-board.py --dry-run` prints the plan and writes nothing: first the
+    lanes it would rename to their display names, then the labels it would name or create, the cards
+    whose plain colour labels gain a name, and how many cards it would dress and checklists it would
+    add. When the plan looks right, run it again without `--dry-run`. It renames the lanes, names the
+    labels and gives every open card its lane's cover and sticker, its labels with its lane's actor
+    label, any stale actor label removed, and, where the description has criteria, its Acceptance
+    criteria checklist. A second run touches only lanes and cards that have drifted. If it stops on a
+    Trello rate limit, run it again; it is idempotent.
 12. `scripts/platform-check.sh` must print only `ok` lines, including all thirteen tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
@@ -115,24 +116,34 @@ sent while the bridge was not running are not answered; send the idea again once
 
 The Trello tool server dresses a card on every move and create, so the board reads at a glance.
 
-| Lane | Cover | Sticker |
-| --- | --- | --- |
-| Ideas | none | none |
-| Backlog | none | none |
-| Ready | yellow | none |
-| In Progress | purple | none |
-| Review | orange | rocketship, a pull request is open |
-| Testing | lime | thumbsup, the reviewer approved |
-| Done | green | check |
-| Blocked | red | warning |
+| Lane | Shown on the board | Actor label | Cover | Sticker |
+| --- | --- | --- | --- | --- |
+| Ideas | 💡 Ideas · product owner shapes | 💡 Product owner | none | none |
+| Backlog | 📋 Backlog · delivery lead orders | 📋 Delivery lead | none | none |
+| Ready | 🟡 Ready · next for the developer | 📋 Delivery lead | yellow | none |
+| In Progress | 🛠 In Progress · senior developer builds | 🤖 Senior developer | purple | none |
+| Review | 🔍 Review · code reviewer reads | 🔍 Code reviewer | orange | rocketship, a pull request is open |
+| Testing | 🧪 Testing · tester proves | 🧪 Tester | lime | thumbsup, the reviewer approved |
+| Done | ✅ Done · shipped | none | green | check |
+| Blocked | ⛔ Blocked · needs a human | 🙋 Needs a human | red | warning |
+
+Every move puts the destination lane's actor label on the card and takes the previous one off, so
+the card always says who has it. The move comment is signed by the lane the card left, for example
+`🤖 Senior developer → 🔍 Review · code reviewer reads: <reason>`. kora never tells a tenant tool
+server which agent is calling, by design, so the actor comes from the lanes. Every agent signs its
+Telegram posts with its icon and name: 💡 Product owner, 📋 Delivery lead, ⏱ Scrum master,
+🤖 Senior developer, 🔍 Code reviewer, 🧪 Tester, 🛟 Support, 🚆 Sydney trains, 🍜 Lunch and
+🛰 Agent ops; the idea scout's write-up goes back through the bridge unsigned.
 
 Labels say what a card is and what it needs. Idea (sky) marks a card in Ideas; Story (blue), Bug
 (red) and Spike (purple) are the type once it reaches Backlog. High severity (red) goes with the Bug
 label and a star sticker for urgent work. Depends on (orange) means a named prerequisite is not Done
 yet. Shipped (green) is added when a card reaches Done. Proposed via Telegram (pink) marks an idea
 that came through the idea door; the idea door adds it when the card is created. Fixture (black)
-marks a card an evaluation made. The product owner writes the criteria into an Acceptance criteria checklist and the
-tester ticks them.
+marks a card an evaluation made. The six actor labels, with no colour, say who has the card:
+💡 Product owner, 📋 Delivery lead, 🤖 Senior developer, 🔍 Code reviewer, 🧪 Tester and
+🙋 Needs a human. The product owner writes the criteria into an Acceptance criteria checklist and
+the tester ticks them.
 
 ## Working agreements
 

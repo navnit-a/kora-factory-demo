@@ -1,7 +1,11 @@
 SMOKE_SLUG = "smoke"
 SMOKE_PROMPT = (
-    'You are a smoke test. Provision a sandbox, run "node --version", '
-    "report the output in one line, then stop."
+    "You are the platform smoke test for a kora agent factory. Your run proves that an agent can "
+    "start a sandbox and run a command in it, so the rest of the factory can be trusted. "
+    'Provision a sandbox in your default environment, run "node --version" in it, and reply '
+    "with one line: the version it printed. Then stop: make no further tool calls. "
+    "If the sandbox fails to start or the command fails, reply with one line saying what failed "
+    "and stop."
 )
 SMOKE_RUN_LIMIT_USD = 0.2
 SMOKE_RUNS_PER_POD = 4

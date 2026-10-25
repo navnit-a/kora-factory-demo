@@ -27,3 +27,12 @@ def test_pick_model_raises_with_the_listed_ids_when_absent():
 
     with pytest.raises(LookupError, match="anthropic/claude-sonnet-5-5"):
         pick_model([{"id": "anthropic/claude-sonnet-5-5"}], "claude-haiku-5-5")
+
+
+def test_smoke_prompt_says_why_and_how_to_stop():
+    from factory_demo.smoke import SMOKE_PROMPT
+
+    assert "platform" in SMOKE_PROMPT
+    assert "node --version" in SMOKE_PROMPT
+    assert "stop" in SMOKE_PROMPT.lower()
+    assert "fails" in SMOKE_PROMPT

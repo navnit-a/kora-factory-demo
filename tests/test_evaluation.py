@@ -141,18 +141,16 @@ def test_judge_checks_the_final_text():
     assert missing.reasons == ("no final assistant text",)
 
 
-def test_agent_ops_fixture_needs_its_comment_and_post():
+def test_agent_ops_fixture_needs_its_comment_and_no_post():
     fixture = FIXTURES["agent-ops"]
+    assert fixture.expect_post is None
     good = outcome(
         card_list="Blocked",
-        comments=("Agent ops: grant pulls:read to the code reviewer",),
-        posts=("Agent ops: the code reviewer needs pulls:read",),
+        comments=("Agent ops: platform for run 1a288c3b: the code reviewer needs pulls:read",),
     )
     assert judge(fixture, good, 0.40).passed
-    silent = outcome(card_list="Blocked", comments=("Looked at it",))
-    reasons = judge(fixture, silent, 0.40).reasons
-    assert "no comment contains 'Agent ops:'" in reasons
-    assert "no Telegram post mentions 'Agent ops'" in reasons
+    vague = outcome(card_list="Blocked", comments=("Looked at it",))
+    assert judge(fixture, vague, 0.40).reasons == ("no comment contains 'Agent ops:'",)
 
 
 def test_judge_checks_labels_cover_and_checklist():

@@ -437,11 +437,26 @@ def agent_ops_actions() -> list[str]:
     return step.split("\n   - ")[1:]
 
 
-def test_agent_ops_sends_every_operator_line_through_telegram():
-    actions = agent_ops_actions()
-    assert [action.split(":")[0] for action in actions] == ["`platform`", "`prompt`", "`code`"]
-    for action in actions:
-        assert "`telegram_send_message`" in action, action
+def test_agent_ops_posts_to_telegram_only_when_the_owner_must_act():
+    actions = dict(action.split(":", 1) for action in agent_ops_actions())
+    assert list(actions) == ["`platform`", "`prompt`", "`code`", "`owner`"]
+    for quiet in ("`platform`", "`code`"):
+        assert "`telegram_send_message`" not in actions[quiet], quiet
+        assert "post nothing to Telegram" in actions[quiet], quiet
+    for loud in ("`prompt`", "`owner`"):
+        assert "`telegram_send_message`" in actions[loud], loud
+    ops = signature("agent-ops")
+    formats = signed_formats("agent-ops")
+    assert formats
+    assert all(line.startswith(f"{ops} Needs you:") for line in formats)
+    assert f"`{ops} Needs you: approve the prompt fix PR for the <agent>, <pull request URL>`" in (
+        flat(prompt("agent-ops"))
+    )
+    rules = flat(section(prompt("agent-ops"), "rules"))
+    assert "only when the owner must decide or supply something" in rules
+    assert "final run message" in flat(section(prompt("agent-ops"), "how_to_work"))
+    stop = section(prompt("agent-ops"), "when_to_stop")
+    assert "`telegram_send_message`" not in stop
 
 
 def test_agent_ops_dedupes_cardless_runs_by_its_own_previous_run():
@@ -723,5 +738,4 @@ def test_agent_ops_comments_keep_their_prefix():
     assert f"`{AGENT_OPS_PREFIX} <classification> for run <id>: <one line>`" in text
     assert f"comment starting `{AGENT_OPS_PREFIX}`" in text
     assert f"`{AGENT_OPS_PREFIX} <agent> was refused" not in text
-    assert f"`{ops} <agent> was refused" in text
-    assert f"starting `{ops}`" in section(prompt("agent-ops"), "tools")
+    assert f"starting `{ops} Needs you:`" in section(prompt("agent-ops"), "tools")

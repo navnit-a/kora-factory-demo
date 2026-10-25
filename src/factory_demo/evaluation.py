@@ -161,7 +161,6 @@ FIXTURES: dict[str, Fixture] = {
         "Run 1a288c3b-501f-48f3-a3c8-abd19ecf6d47 of the code reviewer moved this card to "
         "Blocked: gh pr list was refused by the egress policy, pulls:read missing.",
         "Blocked",
-        expect_post="Agent ops",
         expect_comment="Agent ops:",
     ),
 }

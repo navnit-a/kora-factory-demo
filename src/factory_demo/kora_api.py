@@ -10,6 +10,7 @@ import httpx
 TERMINAL_STATES = frozenset({"idle", "completed", "failed", "budget_exhausted"})
 DEFAULT_API_URL = "https://api.local.runkora.io"
 DEFAULT_CREDENTIALS = "/tmp/kora_credentials.json"
+TENANT_BUDGET_PATH = "/api/v1/policy/tenant-budget"
 AUTH_HINT = "kora token rejected: run 'make auth-refresh' in the kora checkout"
 
 
@@ -97,6 +98,35 @@ class KoraClient:
     def run_usage(self, run_id: str) -> dict:
         return self._request("GET", f"/v1/usage/run/{run_id}")
 
+    def list_triggers(self) -> list[dict]:
+        return _as_list(self._request("GET", "/api/v1/triggers"))
+
+    def create_trigger(self, request: dict) -> dict:
+        return self._request("POST", "/api/v1/triggers", request)
+
+    def update_trigger(self, trigger_id: str, patch: dict) -> dict:
+        return self._request("PATCH", f"/api/v1/triggers/{trigger_id}", patch)
+
+    def fire_trigger(self, trigger_id: str, variables: dict[str, str]) -> str:
+        body = {"variables": variables}
+        return self._request("POST", f"/api/v1/trigger-fires/{trigger_id}", body)["delivery_id"]
+
+    def list_deliveries(self, trigger_id: str, limit: int = 10) -> list[dict]:
+        query = httpx.QueryParams(trigger_id=trigger_id, limit=str(limit), omit_payload="true")
+        return _as_list(self._request("GET", f"/api/v1/trigger-deliveries?{query}"))
+
+    def get_tenant_budget(self) -> dict | None:
+        try:
+            return self._request("GET", TENANT_BUDGET_PATH)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code == 404:
+                return None
+            raise
+
+    def set_tenant_budget(self, limit_usd: float, reset_cadence: str) -> dict:
+        body = {"limit_usd": limit_usd, "reset_cadence": reset_cadence}
+        return self._request("PUT", TENANT_BUDGET_PATH, body)
+
     def wait_for_run(self, run_id: str, timeout_s: int = 600, poll_s: float = 5.0) -> dict:
         deadline = time.monotonic() + timeout_s
         while True:
@@ -111,7 +141,7 @@ class KoraClient:
 def _as_list(payload: dict | list) -> list[dict]:
     if isinstance(payload, list):
         return payload
-    for key in ("items", "data", "models", "environments", "agent_types"):
+    for key in ("items", "data", "models", "environments", "agent_types", "triggers", "deliveries"):
         if isinstance(payload.get(key), list):
             return payload[key]
     return []

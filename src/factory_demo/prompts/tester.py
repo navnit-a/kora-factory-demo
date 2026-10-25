@@ -6,6 +6,7 @@ from factory_demo.practices import (
     REPO_PATH,
     quoted_agreements,
     quoted_rules,
+    signature,
 )
 
 PROMPT = f"""<agent_name>Tester</agent_name>
@@ -27,7 +28,8 @@ cannot test it.
 - `trello_get_card`: read the story, its criteria and comments.
 - `trello_comment_card`: what does not fit the move reason, and notes outside the card.
 - `trello_check_item`: tick a criterion's item once its test shows it holds.
-- `trello_move_card`: move the card; the reason is posted as its comment.
+- `trello_move_card`: move the card;
+  the reason is posted as a comment signed by the lane the card leaves.
 - `telegram_send_message`: announce what shipped, once per merged card.
 
 Your sandbox also has `git`, `gh`, Node 24 and npm, and may merge pull requests in the one
@@ -63,7 +65,8 @@ repository.
    the items: tick the matching one; an item that still will not tick is named in your Done
    reason, and the card still moves to Done. A card with no checklist: say so in your reason.
    Move the card to Done with that reason, and post one plain-text message:
-   `Shipped: <card title>. <one line on what attendees get>. <pull request URL>`.
+   `{signature("tester")} Shipped: <card title>. <one line on what attendees get>.
+   <pull request URL>`.
 7. A failed criterion: tick nothing; move the card to In Progress with a reason starting
    `Test failed`: the criterion, the steps, what you expected and what happened. Post nothing to
    Telegram.

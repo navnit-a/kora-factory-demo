@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
+from factory_tools.lists import actor_label
 from factory_tools.trello.look import (
+    ACTOR_LABEL_NAMES,
     DEPENDS_ON,
     DONE,
     FIXTURE_TAG,
@@ -39,10 +41,11 @@ class CardPlan:
     sticker: tuple[str, ...]
     labels: tuple[str, ...]
     criteria: tuple[str, ...]
+    unlabel: tuple[str, ...] = ()
 
     @property
     def changes(self) -> bool:
-        return any((self.cover, self.sticker, self.labels, self.criteria))
+        return any((self.cover, self.sticker, self.labels, self.criteria, self.unlabel))
 
 
 def resolve_labels(
@@ -75,7 +78,7 @@ def criteria_from_description(text: str) -> tuple[str, ...]:
 
 
 def names_prerequisite(comment: str) -> bool:
-    if comment.lstrip().startswith(UNBLOCKED):
+    if UNBLOCKED in comment:
         return False
     lowered = comment.casefold()
     return any(word in lowered for word in DEPENDENCY_WORDS)
@@ -86,7 +89,20 @@ def wanted_labels(state: CardState) -> tuple[str, ...]:
     fixture = (FIXTURE,) if FIXTURE_TAG in state.title else ()
     shipped = (SHIPPED,) if state.lane == DONE else ()
     depends = (DEPENDS_ON,) if names_prerequisite(state.last_comment) else ()
-    return tuple(dict.fromkeys((*typed, *fixture, *shipped, *depends)))
+    return tuple(dict.fromkeys((*typed, *fixture, *shipped, *depends, *_actor(state.lane))))
+
+
+def _actor(lane: str) -> tuple[str, ...]:
+    actor = actor_label(lane)
+    return (actor,) if actor else ()
+
+
+def stale_actors(state: CardState) -> tuple[str, ...]:
+    return tuple(
+        name
+        for name in state.labels
+        if name in ACTOR_LABEL_NAMES and name not in _actor(state.lane)
+    )
 
 
 def plan_card(state: CardState) -> CardPlan:
@@ -95,4 +111,4 @@ def plan_card(state: CardState) -> CardPlan:
     sticker = (look.sticker,) if look.sticker and state.lane_stickers != (look.sticker,) else ()
     missing = tuple(name for name in wanted_labels(state) if name not in state.labels)
     criteria = () if state.has_checklist else criteria_from_description(state.description)
-    return CardPlan(state.card_id, cover, sticker, missing, criteria)
+    return CardPlan(state.card_id, cover, sticker, missing, criteria, stale_actors(state))

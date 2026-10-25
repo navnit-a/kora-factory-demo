@@ -969,6 +969,19 @@ def test_label_records_include_unnamed_labels_by_id():
 
 
 @respx.mock
+def test_board_lists_returns_the_raw_lists_with_ids():
+    mock_lists(DISPLAY_LISTS)
+    assert run(client().board_lists()) == DISPLAY_LISTS
+
+
+@respx.mock
+def test_rename_list_puts_the_new_name():
+    route = respx.put(f"{API}/lists/l-ideas").mock(return_value=httpx.Response(200, json={}))
+    run(client().rename_list("l-ideas", "💡 Ideas · product owner shapes"))
+    assert form(route.calls[0].request) == {"name": "💡 Ideas · product owner shapes"}
+
+
+@respx.mock
 def test_rename_label_puts_the_new_name():
     route = respx.put(f"{API}/labels/lab-1").mock(return_value=httpx.Response(200, json={}))
     run(client().rename_label("lab-1", "Story"))

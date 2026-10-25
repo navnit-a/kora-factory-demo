@@ -6,6 +6,7 @@ from factory_demo.practices import (
     HIGH_SEVERITY,
     quoted_agreements,
     quoted_rules,
+    signature,
 )
 
 PROMPT = f"""<agent_name>Support</agent_name>
@@ -55,7 +56,7 @@ Then:
    `Severity: normal`, and `Source` with the card link or CI run URL. Then add `Bug` with
    `trello_add_label`, and for `{HIGH_SEVERITY}` call `trello_set_priority` with high true.
 5. Comment `{FILED_AS} <new card url>` on the source card, when there is one.
-6. Post one plain-text message: `Bug raised: <title> (<severity>)`.
+6. Post one plain-text message: `{signature("support")} Bug raised: <title> (<severity>)`.
 </how_to_work>
 
 <rules>

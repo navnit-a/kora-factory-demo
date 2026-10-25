@@ -9,7 +9,7 @@ from factory_demo.dress_card import (
     plan_card,
     resolve_labels,
 )
-from factory_tools.lists import BOARD_LISTS
+from factory_tools.lists import BOARD_LISTS, canonical_name, display_name
 from factory_tools.trello.look import DEPENDS_ON, LABELS, LANE_STICKERS, SHIPPED
 
 __all__ = [
@@ -28,8 +28,10 @@ COLOUR_NAMES = dict(blue="Story", green=SHIPPED, orange=DEPENDS_ON, purple="Spik
 RENAMES = {**COLOUR_NAMES, READY_COLOUR: READY}
 RENAME = "rename"
 RELABEL_HEADER = "Cards whose colour label becomes:"
+NO_COLOUR = "no colour"
 
 LabelAction = tuple[str, str, str | None]
+LaneRename = tuple[str, str, str]
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,11 @@ class DressReport:
     cards_dressed: int
     checklists_added: int
     relabelled_cards: tuple[tuple[str, str], ...]
+    renamed_lanes: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def lists_renamed(self) -> int:
+        return len(self.renamed_lanes)
 
 
 def _label_action(name: str, colour: str | None, named: set[str], unnamed: set[str]) -> LabelAction:
@@ -55,6 +62,15 @@ def plan_labels(existing: dict[str, dict]) -> tuple[LabelAction, ...]:
     has_ready = READY in named or READY_COLOUR in unnamed
     ready = (_label_action(READY, READY_COLOUR, named, unnamed),) if has_ready else ()
     return (*palette, *ready)
+
+
+def plan_lanes(lists: list[dict]) -> tuple[LaneRename, ...]:
+    matched = ((item["id"], item["name"], canonical_name(item["name"])) for item in lists)
+    return tuple(
+        (list_id, raw, display_name(lane))
+        for list_id, raw, lane in matched
+        if lane and raw != display_name(lane)
+    )
 
 
 def renamed_colours(plan: tuple[LabelAction, ...]) -> dict[str, str]:
@@ -110,22 +126,32 @@ async def _apply_card(trello: Any, plan: CardPlan) -> None:
         await trello.set_lane_sticker(plan.card_id, image)
     for name in plan.labels:
         await trello.add_label(plan.card_id, name)
+    for name in plan.unlabel:
+        await trello.remove_label(plan.card_id, name)
     if plan.criteria:
         await trello.add_checklist(plan.card_id, plan.criteria)
 
 
+async def _apply_lanes(trello: Any, lanes: tuple[LaneRename, ...]) -> None:
+    for list_id, _, name in lanes:
+        await trello.rename_list(list_id, name)
+
+
 async def dress(trello: Any, dry_run: bool) -> DressReport:
+    lanes = plan_lanes(await trello.board_lists())
     existing = await trello.label_records()
     labels = plan_labels(existing)
     states = await _card_states(trello, renamed_colours(labels))
     plans = tuple(plan for plan in map(plan_card, states) if plan.changes)
     if not dry_run:
+        await _apply_lanes(trello, lanes)
         await _apply_labels(trello, labels, existing)
         for plan in plans:
             await _apply_card(trello, plan)
     relabelled = tuple(sorted((s.title, name) for s in states for name in s.relabelled))
     checklists = sum(1 for plan in plans if plan.criteria)
-    return DressReport(labels, len(plans), checklists, relabelled)
+    renamed = tuple((raw, name) for _, raw, name in lanes)
+    return DressReport(labels, len(plans), checklists, relabelled, renamed)
 
 
 def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
@@ -135,10 +161,13 @@ def _relabel_lines(relabelled: tuple[tuple[str, str], ...]) -> tuple[str, ...]:
 
 
 def report_lines(report: DressReport, dry_run: bool) -> tuple[str, ...]:
-    actions = tuple(f"{action} label {name} ({colour})" for action, name, colour in report.labels)
+    lanes = tuple(f"renamed lane {old} → {new}" for old, new in report.renamed_lanes)
+    actions = tuple(
+        f"{action} label {name} ({colour or NO_COLOUR})" for action, name, colour in report.labels
+    )
     counts = (
         f"{report.cards_dressed} card(s) dressed",
         f"{report.checklists_added} checklist(s) added",
     )
     note = ("dry run: nothing was written",) if dry_run else ()
-    return (*actions, *_relabel_lines(report.relabelled_cards), *counts, *note)
+    return (*lanes, *actions, *_relabel_lines(report.relabelled_cards), *counts, *note)

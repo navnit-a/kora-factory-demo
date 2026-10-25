@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from factory_demo.evaluation import FIXTURES
 from factory_demo.practices import (
     AGENT_OPS_PREFIX,
     AGREEMENTS_BY_ROLE,
@@ -22,14 +23,18 @@ from factory_demo.practices import (
     RULES_BY_ROLE,
     SCOUT_TAGS,
     SDLC_RULES,
+    SIGNATURES,
     UNBLOCKED,
     VERDICTS,
     quoted_agreements,
     quoted_rules,
+    signature,
 )
 from factory_demo.roster import ROSTER, by_slug, prompt
 from factory_demo.tools_check import PLATFORM_TOOLS, expected_tool_names
 from factory_tools.lists import BOARD_LISTS
+from factory_tools.places.server import ATTRIBUTION as PLACES_ATTRIBUTION
+from factory_tools.transport.server import ATTRIBUTION as TRANSPORT_ATTRIBUTION
 
 TAGS = ("agent_name", "why", "lane", "tools", "how_to_work", "rules", "when_to_stop")
 TEAM = (
@@ -75,6 +80,8 @@ MOVES = {
 }
 KNOWN_TOOLS = expected_tool_names() | {t for tools in PLATFORM_TOOLS.values() for t in tools}
 SLUGS = [spec.slug for spec in ROSTER]
+POSTING = [spec.slug for spec in ROSTER if "telegram_send_message" in spec.tools]
+MOVE_SIGNED = "the reason is posted as a comment signed by the lane the card leaves"
 
 
 def section(text: str, tag: str) -> str:
@@ -98,6 +105,8 @@ def test_every_prompt_has_the_seven_sections_in_order(slug):
 def test_prompt_names_exactly_its_granted_tools(slug):
     named = {tool for tool in KNOWN_TOOLS if tool in prompt(slug)}
     assert named == set(by_slug(slug).tools)
+    if "trello_move_card" in named:
+        assert MOVE_SIGNED in flat(prompt(slug))
 
 
 @pytest.mark.parametrize("slug", SLUGS)
@@ -259,7 +268,8 @@ def delivery_steps() -> str:
 
 def test_delivery_lead_does_not_unblock_the_same_card_twice():
     steps = delivery_steps()
-    assert f"already has an `{UNBLOCKED}` comment naming that prerequisite is left alone" in steps
+    assert f"already has a comment containing `{UNBLOCKED}` naming that prerequisite" in steps
+    assert "is left alone" in steps
     assert "did not resolve this" in steps
     assert "skip it when such a comment exists" in steps
 
@@ -281,8 +291,21 @@ def test_delivery_lead_matches_prerequisites_by_title_only():
 
 def test_delivery_lead_skips_bookkeeping_comments_when_reading_the_reason():
     steps = delivery_steps()
-    skipped = f"skipping comments starting `{DEPENDS_ON}`, `{UNBLOCKED}` and `{AGENT_OPS_PREFIX}`"
+    skipped = f"skipping comments containing `{DEPENDS_ON}`, `{UNBLOCKED}` and `{AGENT_OPS_PREFIX}`"
     assert skipped in steps
+
+
+def test_delivery_lead_matches_bookkeeping_comments_anywhere():
+    steps = delivery_steps()
+    assert "often itself containing `Blocked:`" in steps
+    assert f"comment containing `{UNBLOCKED}`" in steps
+    assert "comments starting" not in steps
+    assert "itself starting" not in steps
+
+
+def test_developer_finds_fix_requests_anywhere_in_a_comment():
+    steps = flat(section(prompt("senior-developer"), "how_to_work"))
+    assert "Comments containing `Changes requested` or `Test failed` are what to fix" in steps
 
 
 def test_delivery_lead_pulls_a_backlog_prerequisite_past_the_ready_cap():
@@ -566,6 +589,8 @@ def test_stand_up_names_blocked_cards_and_what_needs_the_owner():
     assert "each `none` when empty" in stand_up
     assert "under 600 characters" in stand_up
     assert "latest reason" in stand_up
+    signed = f"`{signature('delivery-lead')} Stand-up, <weekday> <date>` on the first line"
+    assert signed in stand_up
     assert "Blocked" in flat(section(text, "lane")).split("Stand-up runs:")[1]
 
 
@@ -617,3 +642,62 @@ def test_product_owner_labels_hand_made_bug_and_spike_cards():
     for phrase in ("`Bug`", "`Spike`", "`Story`", f"`{BUG_PREFIX}`", "`Spike:`"):
         assert phrase in label, phrase
     assert "add nothing" not in label
+
+
+ATTRIBUTED = {"sydney-trains": TRANSPORT_ATTRIBUTION, "lunch": PLACES_ATTRIBUTION}
+EXPECTED_POSTS = [
+    (slug, fixture.expect_post) for slug, fixture in FIXTURES.items() if fixture.expect_post
+]
+
+
+def signed_formats(slug: str) -> tuple[str, ...]:
+    pattern = rf"`({re.escape(signature(slug))} [^`]+)`"
+    return tuple(re.findall(pattern, flat(prompt(slug))))
+
+
+def test_signatures_are_the_agreed_ones():
+    assert SIGNATURES == {
+        "product-owner": "💡 Product owner:",
+        "delivery-lead": "📋 Delivery lead:",
+        "scrum-master": "⏱ Scrum master:",
+        "senior-developer": "🤖 Senior developer:",
+        "code-reviewer": "🔍 Code reviewer:",
+        "tester": "🧪 Tester:",
+        "support": "🛟 Support:",
+        "sydney-trains": "🚆 Sydney trains:",
+        "lunch": "🍜 Lunch:",
+        "agent-ops": "🛰 Agent ops:",
+    }
+    assert signature("idea-scout") == ""
+    assert signature("tester") == "🧪 Tester:"
+    with pytest.raises(ValueError, match="nobody"):
+        signature("nobody")
+
+
+@pytest.mark.parametrize("slug", POSTING)
+def test_every_posting_prompt_signs_its_posts(slug):
+    assert signature(slug)
+    assert signature(slug) in prompt(slug)
+    assert signed_formats(slug)
+
+
+@pytest.mark.parametrize(("slug", "wanted"), EXPECTED_POSTS)
+def test_signatures_do_not_break_expected_posts(slug, wanted):
+    formats = signed_formats(slug)
+    assert formats
+    if slug in ATTRIBUTED:
+        assert "the attribution exactly as the tool returned it" in flat(prompt(slug))
+    post = " ".join((*formats, ATTRIBUTED.get(slug, "")))
+    assert wanted.lower() in post.lower()
+
+
+def test_agent_ops_comments_keep_their_prefix():
+    text = flat(prompt("agent-ops"))
+    ops = signature("agent-ops")
+    assert ops == f"🛰 {AGENT_OPS_PREFIX}"
+    assert f"`trello_comment_card`: your conclusion, starting `{AGENT_OPS_PREFIX}`" in text
+    assert f"`{AGENT_OPS_PREFIX} <classification> for run <id>: <one line>`" in text
+    assert f"comment starting `{AGENT_OPS_PREFIX}`" in text
+    assert f"`{AGENT_OPS_PREFIX} <agent> was refused" not in text
+    assert f"`{ops} <agent> was refused" in text
+    assert f"starting `{ops}`" in section(prompt("agent-ops"), "tools")

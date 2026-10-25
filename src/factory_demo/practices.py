@@ -151,6 +151,19 @@ UNBLOCKED = "Unblocked:"
 SCOUT_TAGS = ("title", "story", "criteria", "verdict", "dependencies", "reason")
 VERDICTS = ("buildable", "needs_dependency", "not_buildable")
 AGENT_OPS_PREFIX = "Agent ops:"
+SIGNATURES: dict[str, str] = {
+    "product-owner": "💡 Product owner:",
+    "delivery-lead": "📋 Delivery lead:",
+    "scrum-master": "⏱ Scrum master:",
+    "senior-developer": "🤖 Senior developer:",
+    "code-reviewer": "🔍 Code reviewer:",
+    "tester": "🧪 Tester:",
+    "support": "🛟 Support:",
+    "sydney-trains": "🚆 Sydney trains:",
+    "lunch": "🍜 Lunch:",
+    "agent-ops": f"🛰 {AGENT_OPS_PREFIX}",
+}
+UNSIGNED = frozenset({"idea-scout"})
 OPS_BRANCH_PREFIX = "agent-ops/"
 OPS_REPO_PATH = "repos/navnit-a/kora-factory-demo"
 OPS_REPO = "kora-factory-demo"
@@ -278,6 +291,14 @@ AGREEMENT_HEADINGS = (
     ("Definition of Done", DONE),
     ("Flow", FLOW),
 )
+
+
+def signature(slug: str) -> str:
+    if slug in UNSIGNED:
+        return ""
+    if slug not in SIGNATURES:
+        raise ValueError(f"No signature for '{slug}'; signed agents are {', '.join(SIGNATURES)}.")
+    return SIGNATURES[slug]
 
 
 def quoted_rules(slug: str) -> str:

@@ -4,7 +4,10 @@ from factory_demo.practices import (
     OPS_BRANCH_PREFIX,
     OPS_REPO_PATH,
     quoted_rules,
+    signature,
 )
+
+OPS = signature("agent-ops")
 
 PROMPT = f"""<agent_name>Agent ops</agent_name>
 
@@ -24,7 +27,7 @@ alone.
 - `trello_list_cards`: list Blocked with limit 10.
 - `trello_get_card`: a card's reason and comments.
 - `trello_comment_card`: your conclusion, starting `{AGENT_OPS_PREFIX}`.
-- `telegram_send_message`: one line per problem, for the operator.
+- `telegram_send_message`: one line per problem, for the operator, starting `{OPS}`.
 - `runs.list`, `runs.get`, `runs.events`: runs, their state, and their numbered events.
 - `triggers.get`, `triggers.deliveries.list`: an agent's trigger and the runs it delivered.
 
@@ -44,7 +47,7 @@ A sandbox has `git`, `gh`, Python 3 and uv, with write access to `kora-factory-d
    - `prompt`: the agent skipped a step, misread its lane or produced the wrong shape.
    - `code`: a bug in a tool server or script.
 5. Act:
-   - `platform`: send `{AGENT_OPS_PREFIX} <agent> was refused <grant or permission>; operator action
+   - `platform`: send `{OPS} <agent> was refused <grant or permission>; operator action
      needed. Run <id>.` with `telegram_send_message`.
    - `prompt`: if `gh pr list --repo navnit-a/kora-factory-demo --state open --json
      headRefName,title` shows an `{OPS_BRANCH_PREFIX}` branch titled for that agent, open nothing.
@@ -55,9 +58,10 @@ A sandbox has `git`, `gh`, Python 3 and uv, with write access to `kora-factory-d
      and says the owner must update those tests before merge. Commit `fix: ...`, push, and open:
      `gh api -X POST {OPS_REPO_PATH}/pulls -f base=main -f head={OPS_BRANCH_PREFIX}<prefix>
      -f title=<agent>: <change> -f body=<body>`: the run id, the event sequence numbers read,
-     what went wrong and why the change fixes it. Single-quote every `-f` value. Send the pull
-     request URL with `telegram_send_message`.
-   - `code`: send the tool or script's name with `telegram_send_message`. No pull request.
+     what went wrong and why the change fixes it. Single-quote every `-f` value. Send
+     `{OPS} <agent> prompt fix: <pull request URL>` with `telegram_send_message`.
+   - `code`: send `{OPS} <tool or script> failed in run <id>.` with
+     `telegram_send_message`. No pull request.
 6. Comment on the card with `trello_comment_card`:
    `{AGENT_OPS_PREFIX} <classification> for run <id>: <one line>`.
 </how_to_work>
@@ -75,8 +79,8 @@ A sandbox has `git`, `gh`, Python 3 and uv, with write access to `kora-factory-d
 <when_to_stop>
 - Done: at most two problems handled, each commented. End the run.
 - Empty: if Blocked is empty and no failed run is left, end the run without calling any more tools.
-- Stuck: a tool fails twice, ruff fails, or other tests fail: open no pull request, send what
-  failed with `telegram_send_message`, still leave the `{AGENT_OPS_PREFIX}` comment on the card so
-  the next tick skips it, and end the run.
+- Stuck: a tool fails twice, ruff fails, or other tests fail: open no pull request, send
+  `{OPS} <what failed>` with `telegram_send_message`, still leave the `{AGENT_OPS_PREFIX}` comment
+  on the card so the next tick skips it, and end the run.
 </when_to_stop>
 """

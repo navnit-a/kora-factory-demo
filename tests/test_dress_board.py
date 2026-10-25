@@ -6,6 +6,8 @@ from factory_demo.dress_board import (
     plan_labels,
     report_lines,
 )
+from factory_tools.lists import BOARD_LISTS, display_name
+from factory_tools.trello.look import signed_reason
 from tests.fake_board import FakeBoard, card
 
 COLOURS = ("blue", "green", "orange", "purple", "red", "yellow")
@@ -33,6 +35,7 @@ BOARD_PLAN = tuple(
     ("keep", "Spike", "purple") if name == "Spike" else (action, name, colour)
     for action, name, colour in PALETTE_PLAN
 )
+RENAMED_ALL = tuple((name, display_name(name)) for name in BOARD_LISTS)
 DESCRIPTION = (
     "As an attendee I want to filter by track.\n\n"
     "Acceptance Criteria:\n"
@@ -118,27 +121,35 @@ def test_names_prerequisite_reads_the_last_comment_only_as_a_dependency():
     assert not names_prerequisite("")
 
 
+def test_names_prerequisite_reads_signed_move_comments():
+    unblocked = signed_reason("Blocked", "Ready", "Unblocked: the prerequisite shipped")
+    blocked = signed_reason("In Progress", "Blocked", "Blocked: the theme card is a prerequisite")
+    assert not names_prerequisite(unblocked)
+    assert names_prerequisite(blocked)
+
+
 async def test_dress_board_applies_the_look_to_every_card():
     trello = board()
     report = await dress(trello, dry_run=False)
     cards = trello.cards
-    assert report == DressReport(BOARD_PLAN, 5, 2, ())
+    assert report == DressReport(BOARD_PLAN, 6, 2, (), RENAMED_ALL)
+    assert report.lists_renamed == 8
     assert {label["name"] for label in trello.labels.values()} >= {"Story", "Ready", "Fixture"}
-    assert trello.names("c-idea") == ("Idea",)
+    assert trello.names("c-idea") == ("Idea", "💡 Product owner")
     assert cards["c-review"]["cover"] == "orange"
     assert cards["c-review"]["stickers"] == ("star", "rocketship")
-    assert trello.names("c-review") == ("Bug",)
+    assert trello.names("c-review") == ("Bug", "🔍 Code reviewer")
     assert cards["c-review"]["checklist"] == ("Times match the source",)
     assert cards["c-done"]["stickers"] == ("check",)
     assert trello.names("c-done") == ("Story", "Shipped")
     assert len(cards["c-done"]["checklist"]) == 2
     assert cards["c-blocked"]["cover"] == "red"
-    assert trello.names("c-blocked") == ("Fixture", "Depends on")
+    assert trello.names("c-blocked") == ("Fixture", "Depends on", "🙋 Needs a human")
     assert cards["c-progress"]["checklist"] == ("Grid renders",)
-    assert trello.names("c-progress") == ("Spike",)
+    assert trello.names("c-progress") == ("Spike", "🤖 Senior developer")
     assert cards["c-backlog"]["cover"] == "yellow"
     assert cards["c-backlog"]["stickers"] == ("check",)
-    assert trello.names("c-backlog") == ("Story",)
+    assert trello.names("c-backlog") == ("Story", "📋 Delivery lead")
 
 
 async def test_dress_board_is_idempotent():
@@ -148,6 +159,7 @@ async def test_dress_board_is_idempotent():
     again = await dress(trello, dry_run=False)
     assert trello.writes == ()
     assert again.cards_dressed == 0 and again.checklists_added == 0
+    assert again.lists_renamed == 0
     assert all(action == "keep" for action, _, _ in again.labels)
 
 
@@ -176,6 +188,18 @@ def test_report_lines_name_each_label_action_and_the_counts():
     assert report_lines(report, dry_run=True)[-1] == "dry run: nothing was written"
     quiet = DressReport((), 0, 0, ())
     assert report_lines(quiet, dry_run=False)[0] == "Cards whose colour label becomes: none"
+
+
+def test_report_lines_name_renamed_lanes_and_colourless_labels():
+    report = DressReport(
+        (("create", "💡 Product owner", None),), 0, 0, (), (("Ideas", display_name("Ideas")),)
+    )
+    lines = report_lines(report, dry_run=False)
+    assert lines[:2] == (
+        "renamed lane Ideas → 💡 Ideas · product owner shapes",
+        "create label 💡 Product owner (no colour)",
+    )
+    assert report.lists_renamed == 1
 
 
 def tagged_board() -> FakeBoard:
@@ -208,7 +232,72 @@ async def test_dry_run_and_real_run_agree_on_type_labels():
     trello = tagged_board()
     applied = await dress(trello, dry_run=False)
     assert planned == applied
-    assert applied.cards_dressed == 1
-    assert trello.names("c-red") == ("Bug",)
-    assert trello.names("c-green") == ("Shipped", "Story")
-    assert trello.names("c-plain") == ("Story",)
+    assert applied.cards_dressed == 3
+    assert trello.names("c-red") == ("Bug", "📋 Delivery lead")
+    assert trello.names("c-green") == ("Shipped", "Story", "📋 Delivery lead")
+    assert trello.names("c-plain") == ("Story", "📋 Delivery lead")
+
+
+PARTLY_DRESSED_LISTS = (
+    *({"id": f"list-{n}", "name": name} for n, name in enumerate(BOARD_LISTS) if name != "Done"),
+    {"id": "list-done", "name": display_name("Done")},
+    {"id": "list-parking", "name": "Parking lot"},
+)
+
+
+async def test_dress_renames_lanes_once():
+    trello = FakeBoard(
+        UNNAMED, {"c-plain": card("Backlog", "Share my agenda")}, PARTLY_DRESSED_LISTS
+    )
+    first = await dress(trello, dry_run=False)
+    assert first.lists_renamed == 7
+    assert ("Ideas", "💡 Ideas · product owner shapes") in first.renamed_lanes
+    assert all(old != "Done" for old, _ in first.renamed_lanes)
+    assert set(trello.list_names()) == {
+        *(display_name(name) for name in BOARD_LISTS),
+        "Parking lot",
+    }
+    assert trello.names("c-plain") == ("Story", "📋 Delivery lead")
+    trello.writes = ()
+    again = await dress(trello, dry_run=False)
+    assert again.lists_renamed == 0
+    assert trello.writes == ()
+
+
+async def test_dry_run_renames_no_lane():
+    trello = FakeBoard(UNNAMED, {}, PARTLY_DRESSED_LISTS)
+    planned = await dress(trello, dry_run=True)
+    assert planned.lists_renamed == 7
+    assert trello.writes == ()
+    assert "Ideas" in trello.list_names()
+
+
+ACTORS = {
+    "l-dev": {"name": "🤖 Senior developer", "color": None},
+    "l-tester": {"name": "🧪 Tester", "color": None},
+}
+
+
+def actor_board() -> FakeBoard:
+    return FakeBoard(
+        {**UNNAMED, **ACTORS},
+        {
+            "c-review": card("Review", "Share my agenda", labels=("l-dev",)),
+            "c-done": card("Done", "Filter by track", labels=("l-tester",)),
+            "c-testing": card("Testing", "Show the day", labels=("l-tester",)),
+        },
+    )
+
+
+async def test_dress_fixes_stale_actor_labels():
+    trello = actor_board()
+    await dress(trello, dry_run=False)
+    assert trello.names("c-review") == ("Story", "🔍 Code reviewer")
+    assert trello.names("c-done") == ("Story", "Shipped")
+    assert trello.names("c-testing") == ("🧪 Tester", "Story")
+    assert ("remove_label", "c-review", "🤖 Senior developer") in trello.writes
+    assert ("remove_label", "c-done", "🧪 Tester") in trello.writes
+    assert not [call for call in trello.writes if call[:2] == ("remove_label", "c-testing")]
+    trello.writes = ()
+    again = await dress(trello, dry_run=False)
+    assert again.cards_dressed == 0 and trello.writes == ()

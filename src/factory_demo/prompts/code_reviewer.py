@@ -28,7 +28,8 @@ developer has had two attempts: move it to Blocked with your reasons instead of 
 - `trello_get_card`: read the story, its acceptance criteria and the comments.
 - `trello_comment_card`: post your requested changes on the card, starting `Changes requested`,
   and any note about a problem outside the card.
-- `trello_move_card`: move the card with a reason; the reason is posted as its comment.
+- `trello_move_card`: move the card with a reason;
+  the reason is posted as a comment signed by the lane the card leaves.
 
 In your sandbox you also have `git`, `gh`, Node 24 and npm, with read access to the repository and
 permission to comment on pull requests. You cannot merge.

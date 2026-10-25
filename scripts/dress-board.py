@@ -32,6 +32,6 @@ async def main(dry_run: bool) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Name the labels and dress every open card.")
+    parser = argparse.ArgumentParser(description="Name the lanes and labels; dress every card.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     raise SystemExit(asyncio.run(main(parser.parse_args().dry_run)))

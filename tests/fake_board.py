@@ -1,4 +1,7 @@
+from factory_tools.lists import BOARD_LISTS, canonical_name
 from factory_tools.trello.look import LABELS, LANE_STICKERS
+
+CANONICAL_LISTS = tuple({"id": f"list-{n}", "name": name} for n, name in enumerate(BOARD_LISTS))
 
 
 def card(lane: str, title: str, **fields) -> dict:
@@ -16,9 +19,15 @@ def card(lane: str, title: str, **fields) -> dict:
 
 
 class FakeBoard:
-    def __init__(self, labels: dict[str, dict], cards: dict[str, dict]):
+    def __init__(
+        self,
+        labels: dict[str, dict],
+        cards: dict[str, dict],
+        lists: tuple[dict, ...] = CANONICAL_LISTS,
+    ):
         self.labels = dict(labels)
         self.cards = dict(cards)
+        self.lists = tuple(dict(item) for item in lists)
         self.writes: tuple[tuple, ...] = ()
 
     def _write(self, *call) -> None:
@@ -43,7 +52,21 @@ class FakeBoard:
         self.labels = {**self.labels, label_id: {"name": name, "color": LABELS[name]}}
         return label_id
 
+    async def board_lists(self) -> list[dict]:
+        return [dict(item) for item in self.lists]
+
+    async def rename_list(self, list_id: str, name: str) -> None:
+        self._write("rename_list", list_id, name)
+        self.lists = tuple(
+            {**item, "name": name} if item["id"] == list_id else item for item in self.lists
+        )
+
+    def list_names(self) -> tuple[str, ...]:
+        return tuple(item["name"] for item in self.lists)
+
     async def cards_in(self, list_name: str, limit: int) -> list[dict]:
+        if not any(canonical_name(item["name"]) == list_name for item in self.lists):
+            raise LookupError(f"No list named '{list_name}' on the fake board")
         return [
             {"id": card_id, "title": c["title"], "list": c["list"]}
             for card_id, c in self.cards.items()
@@ -80,6 +103,12 @@ class FakeBoard:
         label_id = await self.ensure_label(name)
         self._update(card_id, labels=(*self.cards[card_id]["labels"], label_id))
         return {"id": card_id, "label": name, "added": True}
+
+    async def remove_label(self, card_id: str, name: str) -> dict:
+        self._write("remove_label", card_id, name)
+        kept = tuple(i for i in self.cards[card_id]["labels"] if self.labels[i]["name"] != name)
+        self._update(card_id, labels=kept)
+        return {"id": card_id, "label": name, "removed": True}
 
     async def checklist_items(self, card_id: str) -> tuple[tuple[str, str], ...]:
         return tuple((item, "incomplete") for item in self.cards[card_id]["checklist"])

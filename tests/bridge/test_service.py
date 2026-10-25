@@ -120,9 +120,19 @@ async def test_unknown_user_saying_hello_learns_their_id(allowlist):
 async def test_bad_idea_text_is_refused_before_anything_else(allowlist):
     bridge, bot, runner, _ = make(allowlist)
     for text in ("/idea short", f"/idea {IDEA} <b>"):
-        await bridge.handle(State(0, {}, {}), message(text, STRANGER))
+        await bridge.handle(State(0, {}, {}), message(text))
     assert bot.texts() == (replies.bad_text(), replies.bad_text())
     assert runner.calls == ()
+
+
+async def test_unknown_user_with_bad_text_is_still_refused(allowlist, caplog):
+    bridge, bot, runner, _ = make(allowlist)
+    with caplog.at_level(logging.INFO, logger="factory_bridge"):
+        for text in ("/idea short", f"/idea {IDEA} <b>"):
+            await bridge.handle(State(0, {}, {}), message(text, STRANGER))
+    assert bot.texts() == (replies.refused(STRANGER), replies.refused(STRANGER))
+    assert runner.calls == ()
+    assert caplog.text.count(f"refused user_id={STRANGER} first_name=Ana<b>") == 2
 
 
 async def test_idea_from_allowed_user_runs_the_scout_and_asks_for_yes(allowlist):
@@ -270,6 +280,20 @@ async def test_step_logs_a_failed_reply_and_moves_on(allowlist, caplog):
     assert "update 30" in caplog.text and "HTTP 400" in caplog.text
 
 
+async def test_step_logs_an_unexpected_error_in_one_update_and_moves_on(allowlist, caplog):
+    batch = [update(80, "yes"), update(81, f"/idea {IDEA}"), update(82, "hello")]
+    bot = FakeBot((batch,))
+    bridge = Bridge(
+        bot, FakeRunner(KeyError("state")), FakeBoard().create, allowlist, Clock(), STARTED
+    )
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"):
+        state = await bridge.step(State(0, {}, {}))
+    assert state.offset == 83
+    assert bot.texts() == (replies.nothing_pending(), replies.ack(), replies.bad_text())
+    assert "update 81" in caplog.text
+    assert "Traceback" in caplog.text and "KeyError: 'state'" in caplog.text
+
+
 async def test_run_forever_survives_a_failed_poll(allowlist, monkeypatch, caplog):
     naps: tuple[float, ...] = ()
 
@@ -289,6 +313,25 @@ async def test_run_forever_survives_a_failed_poll(allowlist, monkeypatch, caplog
     assert bot.offsets == (0, 0, 41)
     assert len(naps) == 1
     assert "did not answer in time" in caplog.text
+
+
+async def test_poll_loop_survives_an_unexpected_error(allowlist, monkeypatch, caplog):
+    naps: tuple[float, ...] = ()
+
+    async def nap(seconds: float) -> None:
+        nonlocal naps
+        naps = (*naps, seconds)
+
+    monkeypatch.setattr("factory_bridge.service.asyncio.sleep", nap)
+    batches = (KeyError("update_id"), [update(70, "hello")], KeyboardInterrupt())
+    bridge, bot, _, _ = make(allowlist, batches=batches)
+    with caplog.at_level(logging.ERROR, logger="factory_bridge"), pytest.raises(KeyboardInterrupt):
+        await bridge.run_forever(State(3, {}, {}))
+    assert bot.offsets == (3, 3, 71)
+    assert bot.texts() == (replies.bad_text(),)
+    assert len(naps) == 1
+    assert "offset 3" in caplog.text
+    assert "Traceback" in caplog.text and "KeyError: 'update_id'" in caplog.text
 
 
 async def test_scout_once_returns_the_proposal_reply():

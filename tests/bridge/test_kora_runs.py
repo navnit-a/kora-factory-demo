@@ -169,3 +169,20 @@ def test_budget_exhausted_settles_at_once():
         runner(fake).run("idea text", "Ana")
     assert run.call_count == 1
     assert fake.sleeps == ()
+
+
+@respx.mock
+def test_run_id_skips_non_dict_deliveries():
+    respx.post(f"{BASE}/api/v1/trigger-fires/{TRIGGER}").mock(
+        return_value=httpx.Response(202, json={"delivery_id": "d-1"})
+    )
+    respx.get(f"{BASE}/api/v1/trigger-deliveries").mock(
+        return_value=httpx.Response(
+            200, json={"deliveries": ["d-1", None, 7, ["d-1"], {"id": "d-1", "run_id": "r-1"}]}
+        )
+    )
+    respx.get(f"{BASE}/api/v1/runs/r-1").mock(
+        return_value=httpx.Response(200, json={"id": "r-1", "state": "completed"})
+    )
+    respx.get(f"{BASE}/api/v1/runs/r-1/events").mock(return_value=events_reply("ok"))
+    assert runner(FakeTime()).run("idea text", "Ana") == "ok"

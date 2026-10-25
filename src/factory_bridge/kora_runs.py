@@ -48,7 +48,9 @@ class ScoutRunner:
 
     def _run_id(self, delivery_id: str) -> str | None:
         deliveries = self.kora.list_deliveries(self.trigger_id, DELIVERY_LIMIT)
-        match = next((d for d in deliveries if d.get("id") == delivery_id), None)
+        match = next(
+            (d for d in deliveries if isinstance(d, dict) and d.get("id") == delivery_id), None
+        )
         return None if match is None else _delivery_run_id(match)
 
     def _settled(self, run_id: str) -> str | None:

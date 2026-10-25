@@ -32,8 +32,8 @@ A sandbox has `git`, `gh`, Python 3 and uv, with write access to `kora-factory-d
 </tools>
 
 <how_to_work>
-1. List Blocked, and `runs.list` for runs of the last 2 hours that ended `failed`, `error` or
-   stopped by budget, and for your own agent's runs.
+1. List Blocked, and `runs.list` with state `failed,budget_exhausted` for runs of the last 2
+   hours that ended `failed` or `budget_exhausted`, and for your own agent's runs.
 2. Skip any card that already holds a comment starting `{AGENT_OPS_PREFIX}`, and any run named in
    one: a run already diagnosed is never diagnosed twice. A failed run with no Blocked card counts
    only if it started after your own previous run began.

@@ -416,3 +416,11 @@ def test_agent_ops_opens_the_pr_and_names_failing_prompt_tests():
     assert "the owner must update those tests before merge" in text
     stuck = " ".join(section(prompt("agent-ops"), "when_to_stop").split())
     assert "tests or ruff fail" not in stuck
+
+
+def test_agent_ops_names_only_real_run_states():
+    text = " ".join(prompt("agent-ops").split())
+    assert "`runs.list` with state `failed,budget_exhausted`" in text
+    assert "`budget_exhausted`" in text
+    assert "`error`" not in text
+    assert "stopped by budget" not in text

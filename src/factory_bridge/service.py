@@ -42,12 +42,12 @@ class Bridge:
     async def handle(self, state: State, message: Message) -> State:
         if message.date < self.started_at:
             return state
+        if not self._allowed(message.user_id):
+            await self._refuse(message)
+            return state
         command = parse_command(message.text)
         if isinstance(command, Idea) and not idea_text_ok(command.text):
             await self._reply(message, replies.bad_text())
-            return state
-        if not self._allowed(message.user_id):
-            await self._refuse(message)
             return state
         if isinstance(command, Idea):
             return await self._on_idea(state, message, command.text)
@@ -72,8 +72,10 @@ class Bridge:
             return await self.step(state)
         except ToolError as error:
             log.error("polling Telegram failed: %s", error)
-            await asyncio.sleep(RETRY_S)
-            return state
+        except Exception:
+            log.exception("poll at offset %s failed unexpectedly", state.offset)
+        await asyncio.sleep(RETRY_S)
+        return state
 
     async def _update(self, state: State, update: dict) -> State:
         advanced = replace(state, offset=max(state.offset, update["update_id"] + 1))
@@ -86,6 +88,9 @@ class Bridge:
             log.error(
                 "update %s from user_id=%s failed: %s", update["update_id"], message.user_id, error
             )
+            return advanced
+        except Exception:
+            log.exception("update %s from user_id=%s broke", update["update_id"], message.user_id)
             return advanced
 
     async def _on_idea(self, state: State, message: Message, idea: str) -> State:

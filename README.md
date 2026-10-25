@@ -18,6 +18,11 @@ to 8 CPUs and 12 GB.
    apply the providers in `deploy/providers/` (see the plan's Task 3).
 6. `scripts/platform-check.sh` must print only `ok` lines before any agent work starts.
 
+The Node sandbox image is enabled by `node: {enabled: true}` under `agents.sandboxImages.bundled` in
+`~/dev/kora/deploy/reference/values/kora.local.yaml`, a local edit in the kora clone. After a
+`make reset`, run `make redeploy-sandbox-images` and then
+`cd deploy/reference && helmfile -e local apply --selector name=kora`.
+
 Dashboard: https://local.runkora.io, sign in as `dev@local.runkora.io`. API: https://api.local.runkora.io.
 The local TLS certificate comes from mkcert; the API client verifies against `$(mkcert -CAROOT)/rootCA.pem`
 or `KORA_CA_FILE`.

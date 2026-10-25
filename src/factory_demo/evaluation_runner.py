@@ -1,4 +1,6 @@
 import asyncio
+import json
+import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -8,6 +10,7 @@ import httpx
 
 from factory_bridge.kora_runs import final_text
 from factory_demo.evaluation import FIXTURES, Fixture, Outcome, Verdict, is_fixture, judge
+from factory_demo.feeds import PRODUCT_REPO
 from factory_demo.roster import by_slug
 from factory_demo.telegram_preview import parse_posts
 from factory_tools.trello.client import TrelloClient
@@ -51,6 +54,28 @@ class EvaluationBoard:
         await self.trello.archive(card_id)
 
 
+def list_open_prs(head: str) -> list[str]:
+    listed = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            PRODUCT_REPO,
+            "--head",
+            head,
+            "--state",
+            "open",
+            "--json",
+            "url",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [pr["url"] for pr in json.loads(listed.stdout)]
+
+
 def run_inputs(fixture: Fixture, start: datetime) -> dict[str, str]:
     if fixture.now_offset_minutes is None:
         return dict(fixture.inputs)
@@ -67,6 +92,7 @@ async def evaluate(
     card_id: str | None = None,
     keep: bool = False,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    list_prs: Callable[[str], list[str]] = list_open_prs,
 ) -> EvaluationResult:
     fixture = FIXTURES[slug]
     spec = by_slug(slug)
@@ -82,7 +108,10 @@ async def evaluate(
     outcome = await _outcome(fixture, board, main_id, extra_ids, before_new, started, run, usage)
     posts = await _posts(fixture, fetch_preview, started, sleep)
     text = await _final_text(fixture, kora, run_id)
-    outcome = Outcome(**{**outcome.__dict__, "posts": posts, "final_text": text})
+    pr_urls = await _pr_urls(fixture, list_prs)
+    outcome = Outcome(
+        **{**outcome.__dict__, "posts": posts, "final_text": text, "pr_urls": pr_urls}
+    )
     verdict = judge(fixture, outcome, spec.run_limit_usd)
     filed = [cid for cid in await _titles(board, fixture) if cid not in before_new]
     await _clean_up(board, (*extra_ids.values(), *filed), main_id, card_id, keep)
@@ -149,6 +178,12 @@ async def _final_text(fixture: Fixture, kora: Any, run_id: str) -> str:
         return final_text(events)
     except ValueError:
         return ""
+
+
+async def _pr_urls(fixture: Fixture, list_prs: Callable[[str], list[str]]) -> tuple[str, ...]:
+    if fixture.expect_pr_head is None:
+        return ()
+    return tuple(await asyncio.to_thread(list_prs, fixture.expect_pr_head))
 
 
 def _manual_trigger(kora: Any, name: str) -> dict:

@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from factory_demo.evaluation import FIXTURES, Outcome, is_fixture, judge
+from factory_demo.evaluation import FIXTURES, Fixture, Outcome, is_fixture, judge
 from factory_demo.roster import ROSTER
 
 
@@ -220,3 +220,42 @@ def test_support_fixture_notes_a_high_severity_symptom():
         "so an attendee using only a keyboard is stuck on it; open any session and press Escape "
         "to see it."
     )
+
+
+TRAINS_POST = "🚆 Sydney trains: ... Transport for NSW"
+TRAINS_PR = "https://github.com/navnit-a/platformcon-day-planner/pull/12"
+
+
+def trains_outcome(pr_urls: tuple[str, ...]) -> Outcome:
+    return Outcome(None, "", (), (TRAINS_POST,), "completed", 0.01, (), {}, pr_urls=pr_urls)
+
+
+def test_judge_requires_the_data_pull_request_when_asked():
+    fixture = Fixture(
+        "sydney-trains",
+        None,
+        "",
+        "",
+        None,
+        expect_post="Transport",
+        expect_pr_head="agent-trains",
+    )
+    verdict = judge(fixture, trains_outcome(()), 0.40)
+    assert verdict.passed is False
+    assert verdict.reasons == ("no open pull request on agent-trains",)
+
+
+def test_judge_passes_with_the_data_pull_request():
+    verdict = judge(FIXTURES["sydney-trains"], trains_outcome((TRAINS_PR,)), 0.40)
+    assert verdict.passed, verdict.reasons
+
+
+def test_judge_ignores_a_pull_request_in_another_repo():
+    other = ("https://github.com/someone/else/pull/12",)
+    assert not judge(FIXTURES["sydney-trains"], trains_outcome(other), 0.40).passed
+
+
+def test_data_fixtures_expect_their_pull_request_head():
+    assert FIXTURES["sydney-trains"].expect_pr_head == "agent-trains"
+    assert FIXTURES["lunch"].expect_pr_head == "agent-lunch"
+    assert FIXTURES["product-owner"].expect_pr_head is None

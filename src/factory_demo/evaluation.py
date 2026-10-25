@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
 
+from factory_demo.feeds import LUNCH_BRANCH, PRODUCT_REPO, TRAINS_BRANCH
+
 FIXTURE_TAG = "[fixture]"
 SETTLED = frozenset({"idle", "completed"})
 COMPLETE = "complete"
 FILED_CARD = " on the filed card"
+PR_URL_PREFIX = f"https://github.com/{PRODUCT_REPO}/pull/"
 STORY = (
     "As an attendee at PlatformCon Sydney, I want to see how many sessions are on the day, so "
     "that I know how full it is at a glance.\n\nAcceptance criteria\n"
@@ -38,6 +41,7 @@ class Fixture:
     expect_cover: str | None = None
     expect_checklist_min: int = 0
     expect_checklist_done: bool = False
+    expect_pr_head: str | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class Outcome:
     labels: tuple[str, ...] = ()
     cover: str | None = None
     checklist: tuple[tuple[str, str], ...] = ()
+    pr_urls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,7 +136,15 @@ FIXTURES: dict[str, Fixture] = {
         expect_comment="Filed as",
         quiet_lists=("Review", "Testing"),
     ),
-    "sydney-trains": Fixture("sydney-trains", None, "", "", None, expect_post="Transport for NSW"),
+    "sydney-trains": Fixture(
+        "sydney-trains",
+        None,
+        "",
+        "",
+        None,
+        expect_post="Transport for NSW",
+        expect_pr_head=TRAINS_BRANCH,
+    ),
     "lunch": Fixture(
         "lunch",
         None,
@@ -140,6 +153,7 @@ FIXTURES: dict[str, Fixture] = {
         None,
         expect_post="OpenStreetMap",
         inputs={"place": "Sydney Masonic Centre", "latitude": "-33.8776", "longitude": "151.2048"},
+        expect_pr_head=LUNCH_BRANCH,
     ),
     "idea-scout": Fixture(
         "idea-scout",
@@ -177,6 +191,7 @@ def judge(fixture: Fixture, outcome: Outcome, limit_usd: float) -> Verdict:
         *_look_reasons(fixture, outcome),
         *_post_reasons(fixture, outcome),
         *_text_reasons(fixture, outcome),
+        *_pr_reasons(fixture, outcome),
     ]
     return Verdict(not reasons, tuple(reasons))
 
@@ -267,3 +282,11 @@ def _text_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
     if fixture.expect_text in outcome.final_text:
         return []
     return [f"final text does not contain {fixture.expect_text!r}"]
+
+
+def _pr_reasons(fixture: Fixture, outcome: Outcome) -> list[str]:
+    if fixture.expect_pr_head is None:
+        return []
+    if any(url.startswith(PR_URL_PREFIX) for url in outcome.pr_urls):
+        return []
+    return [f"no open pull request on {fixture.expect_pr_head}"]

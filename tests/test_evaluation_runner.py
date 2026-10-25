@@ -318,3 +318,56 @@ async def test_runner_names_a_run_without_final_text():
     result = await evaluate("idea-scout", kora, trello, no_posts, start=START)
     assert not result.verdict.passed
     assert "no final assistant text" in result.verdict.reasons
+
+
+TRAINS_PR = "https://github.com/navnit-a/platformcon-day-planner/pull/12"
+
+
+async def trains_post() -> str:
+    return (
+        '<div data-post="c/9"><div class="tgme_widget_message_text">'
+        "🚆 Sydney trains: ... Transport for NSW"
+        '</div><time datetime="2026-10-25T09:03:00+00:00"></time></div>'
+    )
+
+
+async def test_runner_lists_pull_requests_for_the_expected_head():
+    trello = FakeTrello()
+    kora = RunningKora(trello, lambda _: None)
+    kora.triggers = ({"id": "t-tr", "name": "Sydney trains: run now", "kind": "manual"},)
+    seen: list[str] = []
+
+    def list_prs(head: str) -> list[str]:
+        seen.append(head)
+        return [TRAINS_PR]
+
+    result = await evaluate(
+        "sydney-trains", kora, trello, trains_post, start=START, list_prs=list_prs
+    )
+    assert seen == ["agent-trains"]
+    assert result.outcome.pr_urls == (TRAINS_PR,)
+    assert result.verdict.passed, result.verdict.reasons
+
+
+async def test_runner_fails_a_data_agent_without_a_pull_request():
+    trello = FakeTrello()
+    kora = RunningKora(trello, lambda _: None)
+    kora.triggers = ({"id": "t-tr", "name": "Sydney trains: run now", "kind": "manual"},)
+    result = await evaluate(
+        "sydney-trains", kora, trello, trains_post, start=START, list_prs=lambda _: []
+    )
+    assert result.verdict.reasons == ("no open pull request on agent-trains",)
+
+
+async def test_runner_skips_pull_requests_for_a_card_agent():
+    trello = FakeTrello()
+    kora = RunningKora(trello, product_owner_works)
+    seen: list[str] = []
+
+    def list_prs(head: str) -> list[str]:
+        seen.append(head)
+        return []
+
+    result = await evaluate("product-owner", kora, trello, no_posts, start=START, list_prs=list_prs)
+    assert seen == []
+    assert result.outcome.pr_urls == ()

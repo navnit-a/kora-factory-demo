@@ -10,6 +10,7 @@ from tests.fake_board import FakeBoard, card
 
 COLOURS = ("blue", "green", "orange", "purple", "red", "yellow")
 UNNAMED = {f"l-{colour}": {"name": "", "color": colour} for colour in COLOURS}
+SPIKE = {"l-spike": {"name": "Spike", "color": "purple"}}
 PALETTE_PLAN = (
     ("create", "Idea", "sky"),
     ("rename", "Story", "blue"),
@@ -22,6 +23,10 @@ PALETTE_PLAN = (
     ("create", "Fixture", "black"),
     ("rename", "Ready", "yellow"),
 )
+BOARD_PLAN = tuple(
+    ("keep", "Spike", "purple") if name == "Spike" else (action, name, colour)
+    for action, name, colour in PALETTE_PLAN
+)
 DESCRIPTION = (
     "As an attendee I want to filter by track.\n\n"
     "Acceptance Criteria:\n"
@@ -33,7 +38,7 @@ DESCRIPTION = (
 
 def board() -> FakeBoard:
     return FakeBoard(
-        UNNAMED,
+        {**UNNAMED, **SPIKE},
         {
             "c-idea": card("Ideas", "Show what is on now and next"),
             "c-review": card(
@@ -52,7 +57,7 @@ def board() -> FakeBoard:
                 "In Progress",
                 "Spike: try a tile grid",
                 cover="purple",
-                labels=("Spike",),
+                labels=("l-spike",),
                 checklist=("Grid renders",),
                 description=DESCRIPTION,
             ),
@@ -63,6 +68,7 @@ def board() -> FakeBoard:
 
 def test_plan_labels_renames_colour_labels_and_creates_the_rest():
     assert plan_labels(UNNAMED) == PALETTE_PLAN
+    assert plan_labels({**UNNAMED, **SPIKE})[3] == ("keep", "Spike", "purple")
 
 
 def test_plan_labels_keeps_named_labels_and_skips_ready_without_yellow():
@@ -110,23 +116,23 @@ async def test_dress_board_applies_the_look_to_every_card():
     trello = board()
     report = await dress(trello, dry_run=False)
     cards = trello.cards
-    assert report == DressReport(PALETTE_PLAN, 5, 2)
+    assert report == DressReport(BOARD_PLAN, 5, 2, ())
     assert {label["name"] for label in trello.labels.values()} >= {"Story", "Ready", "Fixture"}
-    assert cards["c-idea"]["labels"] == ("Idea",)
+    assert trello.names("c-idea") == ("Idea",)
     assert cards["c-review"]["cover"] == "orange"
     assert cards["c-review"]["stickers"] == ("star", "rocketship")
-    assert cards["c-review"]["labels"] == ("Bug",)
+    assert trello.names("c-review") == ("Bug",)
     assert cards["c-review"]["checklist"] == ("Times match the source",)
     assert cards["c-done"]["stickers"] == ("check",)
-    assert cards["c-done"]["labels"] == ("Story", "Shipped")
+    assert trello.names("c-done") == ("Story", "Shipped")
     assert len(cards["c-done"]["checklist"]) == 2
     assert cards["c-blocked"]["cover"] == "red"
-    assert cards["c-blocked"]["labels"] == ("Fixture", "Depends on")
+    assert trello.names("c-blocked") == ("Fixture", "Depends on")
     assert cards["c-progress"]["checklist"] == ("Grid renders",)
-    assert cards["c-progress"]["labels"] == ("Spike",)
+    assert trello.names("c-progress") == ("Spike",)
     assert cards["c-backlog"]["cover"] == "yellow"
     assert cards["c-backlog"]["stickers"] == ("check",)
-    assert cards["c-backlog"]["labels"] == ("Story",)
+    assert trello.names("c-backlog") == ("Story",)
 
 
 async def test_dress_board_is_idempotent():
@@ -147,11 +153,56 @@ async def test_dry_run_writes_nothing():
 
 
 def test_report_lines_name_each_label_action_and_the_counts():
-    report = DressReport((("rename", "Story", "blue"), ("create", "Idea", "sky")), 3, 1)
+    report = DressReport(
+        (("rename", "Story", "blue"), ("create", "Idea", "sky")),
+        3,
+        1,
+        (("Share my agenda", "Bug"),),
+    )
     assert report_lines(report, dry_run=False) == (
         "rename label Story (blue)",
         "create label Idea (sky)",
+        "Cards whose colour label becomes:",
+        "  Share my agenda: Bug",
         "3 card(s) dressed",
         "1 checklist(s) added",
     )
     assert report_lines(report, dry_run=True)[-1] == "dry run: nothing was written"
+    quiet = DressReport((), 0, 0, ())
+    assert report_lines(quiet, dry_run=False)[0] == "Cards whose colour label becomes: none"
+
+
+def tagged_board() -> FakeBoard:
+    return FakeBoard(
+        UNNAMED,
+        {
+            "c-red": card("Backlog", "Share my agenda", labels=("l-red",)),
+            "c-green": card(
+                "Ready", "Filter by track", cover="yellow", labels=("l-green", "l-blue")
+            ),
+            "c-plain": card("Backlog", "Switch between light and dark"),
+        },
+    )
+
+
+async def test_dry_run_reports_cards_whose_colour_labels_change_meaning():
+    trello = tagged_board()
+    planned = await dress(trello, dry_run=True)
+    assert trello.writes == ()
+    assert planned.relabelled_cards == (
+        ("Filter by track", "Shipped"),
+        ("Filter by track", "Story"),
+        ("Share my agenda", "Bug"),
+    )
+    assert "  Share my agenda: Bug" in report_lines(planned, dry_run=True)
+
+
+async def test_dry_run_and_real_run_agree_on_type_labels():
+    planned = await dress(tagged_board(), dry_run=True)
+    trello = tagged_board()
+    applied = await dress(trello, dry_run=False)
+    assert planned == applied
+    assert applied.cards_dressed == 1
+    assert trello.names("c-red") == ("Bug",)
+    assert trello.names("c-green") == ("Shipped", "Story")
+    assert trello.names("c-plain") == ("Story",)

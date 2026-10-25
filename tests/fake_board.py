@@ -50,9 +50,13 @@ class FakeBoard:
             if c["list"] == list_name
         ][:limit]
 
+    def names(self, card_id: str) -> tuple[str, ...]:
+        return tuple(self.labels[label_id]["name"] for label_id in self.cards[card_id]["labels"])
+
     async def card_look(self, card_id: str) -> dict:
         c = self.cards[card_id]
-        return {"cover": c["cover"], "description": c["description"], "labels": c["labels"]}
+        labels = tuple(dict(self.labels[label_id]) for label_id in c["labels"])
+        return {"cover": c["cover"], "description": c["description"], "labels": labels}
 
     async def card(self, card_id: str) -> dict:
         texts = self.cards[card_id]["comments"]
@@ -73,8 +77,8 @@ class FakeBoard:
 
     async def add_label(self, card_id: str, name: str) -> dict:
         self._write("add_label", card_id, name)
-        await self.ensure_label(name)
-        self._update(card_id, labels=(*self.cards[card_id]["labels"], name))
+        label_id = await self.ensure_label(name)
+        self._update(card_id, labels=(*self.cards[card_id]["labels"], label_id))
         return {"id": card_id, "label": name, "added": True}
 
     async def checklist_items(self, card_id: str) -> tuple[tuple[str, str], ...]:

@@ -84,14 +84,25 @@ async def rename_label(client: TrelloClient, label_id: str, name: str) -> None:
     await client._write("PUT", f"/labels/{label_id}", {"name": name})
 
 
+def _label_look(label: dict) -> dict:
+    name, color = label.get("name"), label.get("color")
+    return {
+        "name": name if isinstance(name, str) else "",
+        "color": color if isinstance(color, str) and color else None,
+    }
+
+
 async def card_look(client: TrelloClient, card_id: str) -> dict:
     card = await client._board_card(card_id, "idBoard,desc,cover,labels")
+    labels = card.get("labels", [])
+    if not isinstance(labels, list):
+        raise ToolError(f"Trello sent card {card_id}'s labels in an unexpected shape; try again.")
     cover = card.get("cover")
     color = cover.get("color") if isinstance(cover, dict) else None
     return {
         "cover": color if isinstance(color, str) and color else None,
         "description": card.get("desc") or "",
-        "labels": tuple(label["name"] for label in card.get("labels", []) if label.get("name")),
+        "labels": tuple(_label_look(label) for label in labels if isinstance(label, dict)),
     }
 
 

@@ -723,21 +723,37 @@ def test_rename_label_puts_the_new_name():
 
 
 @respx.mock
-def test_card_look_reads_cover_full_description_and_named_labels():
+def test_card_look_reads_cover_full_description_and_every_label():
     text = "x" * 1500
     card = {
         "id": CARD,
         "idBoard": "board",
         "desc": text,
         "cover": {"color": "lime", "brightness": "dark"},
-        "labels": [{"id": "a", "name": "Bug"}, {"id": "b", "name": ""}],
+        "labels": [
+            {"id": "a", "name": "Bug", "color": "red"},
+            {"id": "b", "name": "", "color": "green"},
+            {"id": "c"},
+        ],
     }
     route = respx.get(f"{API}/cards/{CARD}").mock(return_value=httpx.Response(200, json=card))
     assert run(client().card_look(CARD)) == {
         "cover": "lime",
         "description": text,
-        "labels": ("Bug",),
+        "labels": (
+            {"name": "Bug", "color": "red"},
+            {"name": "", "color": "green"},
+            {"name": "", "color": None},
+        ),
     }
     assert route.calls[0].request.url.params["fields"] == "idBoard,desc,cover,labels"
     route.mock(return_value=httpx.Response(200, json={"id": CARD, "idBoard": "board"}))
     assert run(client().card_look(CARD)) == {"cover": None, "description": "", "labels": ()}
+
+
+@respx.mock
+def test_card_look_refuses_labels_that_are_not_a_list():
+    card = {"id": CARD, "idBoard": "board", "labels": {"name": "Bug"}}
+    respx.get(f"{API}/cards/{CARD}").mock(return_value=httpx.Response(200, json=card))
+    with pytest.raises(ToolError, match="labels"):
+        run(client().card_look(CARD))

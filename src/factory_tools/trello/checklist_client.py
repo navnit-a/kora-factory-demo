@@ -33,15 +33,19 @@ def _criteria(checklists: list[dict]) -> tuple[dict, ...]:
 async def add_checklist(client: TrelloClient, card_id: str, items: tuple[str, ...]) -> dict:
     if not items:
         raise ToolError(f"Give the card at least one acceptance criterion; {ADD_HINT}.")
-    for checklist in await _checklists(client, card_id):
-        if checklist.get("name") == CHECKLIST_NAME and checklist.get("id"):
-            await client._write("DELETE", f"/checklists/{checklist['id']}", {})
+    old = tuple(
+        checklist["id"]
+        for checklist in await _checklists(client, card_id)
+        if checklist.get("name") == CHECKLIST_NAME and checklist.get("id")
+    )
     created = await client._write("POST", f"/cards/{card_id}/checklists", {"name": CHECKLIST_NAME})
     checklist_id = required_id(created, "checklist")
     for item in items:
         await client._write(
             "POST", f"/checklists/{checklist_id}/checkItems", {"name": item, "checked": "false"}
         )
+    for stale in old:
+        await client._write("DELETE", f"/checklists/{stale}", {})
     return {"id": card_id, "checklist_items": len(items)}
 
 

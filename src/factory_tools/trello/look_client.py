@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from typing import TYPE_CHECKING
 
 from fastmcp.exceptions import ToolError
@@ -29,7 +30,7 @@ def required_id(reply: dict, what: str) -> str:
 
 
 async def set_cover(client: TrelloClient, card_id: str, color: str | None) -> None:
-    cover = {"color": color, **COVER_STYLE} if color else None
+    cover = {"color": color, **COVER_STYLE} if color else {"color": None}
     await client._write_json("PUT", f"/cards/{client._checked_id(card_id)}", {"cover": cover})
 
 
@@ -162,13 +163,24 @@ async def relabel(
             await _detach(client, card_id, label_id)
 
 
+async def _failure(step: Awaitable[None]) -> str:
+    try:
+        await step
+    except ToolError as error:
+        return str(error)
+    return ""
+
+
 async def dress(
     client: TrelloClient, card_id: str, to_list: str, reason: str, extra: tuple[str, ...]
-) -> None:
+) -> tuple[str, ...]:
     look = LANE_LOOK.get(to_list, LaneLook(None, None))
-    await set_cover(client, card_id, look.cover)
-    await set_lane_sticker(client, card_id, look.sticker)
-    await relabel(client, card_id, to_list, reason, extra)
+    failures = (
+        await _failure(relabel(client, card_id, to_list, reason, extra)),
+        await _failure(set_cover(client, card_id, look.cover)),
+        await _failure(set_lane_sticker(client, card_id, look.sticker)),
+    )
+    return tuple(failure for failure in failures if failure)
 
 
 async def set_priority(client: TrelloClient, card_id: str, high: bool) -> dict:

@@ -437,6 +437,13 @@ def flat(text: str) -> str:
     return " ".join(text.split())
 
 
+def numbered(row: str) -> str:
+    rows = next(
+        rows for rows in (DEFINITION_OF_READY, DEFINITION_OF_DONE, FLOW_POLICIES) if row in rows
+    )
+    return f"{rows.index(row) + 1}. {row}"
+
+
 def test_agreements_rows_are_short():
     assert (len(DEFINITION_OF_READY), len(DEFINITION_OF_DONE), len(FLOW_POLICIES)) == (7, 10, 6)
     assert all(0 < len(row.split()) < 30 for row in ALL_ROWS)
@@ -467,10 +474,11 @@ def test_every_role_quotes_its_agreement_rows(slug):
     text = prompt(slug)
     rules = section(text, "rules")
     assert rules.lstrip("\n").startswith(quoted_agreements(slug))
-    assert all(row in rules for row in AGREEMENTS_BY_ROLE[slug])
+    assert all(numbered(row) in rules for row in AGREEMENTS_BY_ROLE[slug])
     assert BOARD_LANGUAGE in rules
     outside = [row for row in ALL_ROWS if row not in AGREEMENTS_BY_ROLE[slug]]
     assert not [row for row in outside if row in text]
+    assert not [row for row in AGREEMENTS_BY_ROLE[slug] if f"- {row}" in text]
 
 
 @pytest.mark.parametrize("slug", ["sydney-trains", "lunch", "agent-ops"])
@@ -482,14 +490,28 @@ def test_roles_without_agreements_quote_none(slug):
 def test_quoted_agreements_group_rows_under_their_headings():
     tester = quoted_agreements("tester")
     assert "Definition of Ready" not in tester
-    done = tester.index("Definition of Done\n- ")
-    flow = tester.index("\nFlow\n- ")
+    done = tester.index("Definition of Done\n1. ")
+    flow = tester.index("\nFlow\n5. ")
     assert done < flow < tester.index(BOARD_LANGUAGE)
     assert tester.endswith(BOARD_LANGUAGE)
     lead = quoted_agreements("delivery-lead")
-    assert lead.startswith("Definition of Ready\n- ")
+    assert lead.startswith("Definition of Ready\n1. ")
     assert "Definition of Done" not in lead
-    assert all(f"- {row}" in lead for row in AGREEMENTS_BY_ROLE["delivery-lead"])
+    assert all(numbered(row) in lead for row in AGREEMENTS_BY_ROLE["delivery-lead"])
+
+
+def test_agreement_rows_are_numbered():
+    ready, done, flow = DEFINITION_OF_READY, DEFINITION_OF_DONE, FLOW_POLICIES
+    lead = quoted_agreements("delivery-lead")
+    assert f"\n6. {ready[5]}\n7. {ready[6]}\nFlow\n1. {flow[0]}" in lead
+    tester = quoted_agreements("tester")
+    assert f"\n10. {done[9]}\nFlow\n5. {flow[4]}\n6. {flow[5]}\n" in tester
+    support = quoted_agreements("support")
+    assert support.startswith(f"Definition of Ready\n6. {ready[5]}\n")
+    assert f"Definition of Done\n8. {done[7]}\nFlow\n2. {flow[1]}\n" in support
+    developer = quoted_agreements("senior-developer")
+    assert f"\n2. {done[1]}\n4. {done[3]}\n" in developer
+    assert not [line for line in lead.splitlines() if line.startswith("- ")]
 
 
 def test_product_owner_builds_the_checklist():
@@ -509,9 +531,19 @@ def test_tester_ticks_criteria_before_done():
     tick = steps.index("`trello_check_item`")
     assert tick < steps.index("Move the card to Done")
     assert "naming the test that shows it" in steps
-    assert "unticked" in steps
     assert "no checklist" in steps
-    assert "not moved to Done" in steps
+    compare = steps[steps.index("5. For each acceptance criterion") : steps.index("6. ")]
+    assert "checklist items `trello_get_card` showed" in compare
+    assert "with the criteria" in compare
+
+
+def test_tester_never_strands_a_merged_card():
+    steps = flat(section(prompt("tester"), "how_to_work"))
+    assert "not moved to Done" not in steps
+    assert steps.index("checklist items") < steps.index("merge_method=squash")
+    after_merge = steps[steps.index("shows `MERGED`") : steps.index("7. A failed criterion")]
+    assert "still will not tick is named in your Done reason" in after_merge
+    assert "the card still moves to Done" in after_merge
 
 
 def test_delivery_lead_checks_ready_and_labels_dependencies():
@@ -575,7 +607,7 @@ def test_stand_up_caps_the_blocked_line():
     stand_up = steps[steps.index("Stand-up run:") :]
     blocked = stand_up[stand_up.index("`Blocked:`") : stand_up.index("`Needs you:`")]
     assert "at most three" in blocked
-    assert "`and N more`" in blocked
+    assert "`and N more` when there are more" in blocked
 
 
 def test_product_owner_labels_hand_made_bug_and_spike_cards():

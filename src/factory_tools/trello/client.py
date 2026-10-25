@@ -8,7 +8,7 @@ from fastmcp.exceptions import ToolError
 from factory_tools.http import json_or_error, request, truncate
 from factory_tools.lists import lists_sentence
 from factory_tools.trello import card_view, checklist_client, look_client
-from factory_tools.trello.look import type_label
+from factory_tools.trello.look import labels_on_create
 
 API = "https://api.trello.com/1"
 COMMENT_TAIL = 5
@@ -98,11 +98,8 @@ class TrelloClient:
     async def apply_look(
         self, card_id: str, to_list: str, reason: str, extra_labels: tuple[str, ...] = ()
     ) -> dict:
-        try:
-            await look_client.dress(self, card_id, to_list, reason, extra_labels)
-        except ToolError as error:
-            return {"look_applied": False, "detail": str(error)}
-        return {"look_applied": True, "detail": ""}
+        failures = await look_client.dress(self, card_id, to_list, reason, extra_labels)
+        return {"look_applied": not failures, "detail": "; ".join(failures)}
 
     async def comment(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")
@@ -115,10 +112,10 @@ class TrelloClient:
             "POST", "/cards", {"idList": list_id, "name": title, "desc": description}
         )
         card_id = body.get("id", "")
-        label = type_label(title, list_name)
-        look = await self.apply_look(card_id, list_name, "", (label,))
+        labels = labels_on_create(title, list_name)
+        look = await self.apply_look(card_id, list_name, "", labels)
         created = {"id": card_id, "url": body.get("shortUrl", ""), "list": list_name}
-        return {**created, "label": label, **look}
+        return {**created, "label": labels[0], **look}
 
     async def set_description(self, card_id: str, text: str) -> dict:
         await self._board_card(card_id, "idBoard")

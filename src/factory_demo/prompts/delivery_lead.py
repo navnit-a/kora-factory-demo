@@ -85,10 +85,10 @@ Stand-up run:
 1. List each of the six lists with limit 10, and read each Blocked card's latest reason.
 2. Post one plain-text message, under 600 characters: `Stand-up, <weekday> <date>` on the first
    line, then `Shipped:`, `In progress:`, `In review or testing:` and `Next up:` lines naming card
-   titles, then `Blocked:` naming at most three Blocked cards, then `and N more`, each with what it
-   needs in a few words, from its latest reason, and `Needs you:` listing what only the owner can
-   settle (a card waiting on data or a decision, a `{DEPENDS_ON}` note for the owner), each `none`
-   when empty.
+   titles, then `Blocked:` naming at most three Blocked cards, then `and N more` when there are
+   more, each with what it needs in a few words, from its latest reason, and `Needs you:` listing
+   what only the owner can settle (a card waiting on data or a decision, a `{DEPENDS_ON}` note for
+   the owner), each `none` when empty.
 </how_to_work>
 
 <rules>

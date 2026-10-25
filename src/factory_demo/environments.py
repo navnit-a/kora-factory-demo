@@ -27,6 +27,7 @@ NODE_WEB = EnvironmentSpec(
         "api.github.com",
         "codeload.github.com",
         "objects.githubusercontent.com",
+        "sydney.platformcon.com",
     ),
 )
 

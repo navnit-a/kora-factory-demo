@@ -284,8 +284,9 @@ def quoted_rules(slug: str) -> str:
     return "\n".join(f"- {SDLC_RULES[n]}" for n in RULES_BY_ROLE[slug])
 
 
-def _agreement_block(heading: str, rows: tuple[str, ...]) -> str:
-    return "\n".join((heading, *(f"- {row}" for row in rows)))
+def _agreement_block(heading: str, rows: tuple[str, ...], quoted: tuple[str, ...]) -> str:
+    numbered = (f"{n}. {row}" for n, row in enumerate(rows, start=1) if row in quoted)
+    return "\n".join((heading, *numbered))
 
 
 def quoted_agreements(slug: str) -> str:
@@ -293,7 +294,7 @@ def quoted_agreements(slug: str) -> str:
     if not quoted:
         return ""
     blocks = tuple(
-        _agreement_block(heading, tuple(row for row in rows if row in quoted))
+        _agreement_block(heading, rows, quoted)
         for heading, rows in AGREEMENT_HEADINGS
         if any(row in quoted for row in rows)
     )

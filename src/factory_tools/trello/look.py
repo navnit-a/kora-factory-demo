@@ -52,6 +52,8 @@ DEPENDS_ON = "Depends on"
 DONE = "Done"
 BLOCKED = "Blocked"
 IDEAS = "Ideas"
+IDEA = "Idea"
+FIXTURE = "Fixture"
 UNBLOCKED = "Unblocked:"
 FIXTURE_TAG = "[fixture]"
 
@@ -61,14 +63,24 @@ def type_label(title: str, list_name: str) -> str:
     if stripped.startswith("Bug:"):
         return "Bug"
     if FIXTURE_TAG in title:
-        return "Fixture"
+        return FIXTURE
     if stripped.startswith("Spike:"):
         return "Spike"
-    return "Idea" if list_name == IDEAS else "Story"
+    return IDEA if list_name == IDEAS else "Story"
+
+
+def labels_on_create(title: str, list_name: str) -> tuple[str, ...]:
+    label = type_label(title, list_name)
+    fixture = (FIXTURE,) if FIXTURE_TAG in title and label != FIXTURE else ()
+    return (label, *fixture)
+
+
+def _dropped(name: str, to_list: str, unblocked: bool) -> bool:
+    return (unblocked and name == DEPENDS_ON) or (to_list != IDEAS and name == IDEA)
 
 
 def labels_after_move(current: tuple[str, ...], to_list: str, reason: str) -> tuple[str, ...]:
     unblocked = to_list != BLOCKED and reason.lstrip().startswith(UNBLOCKED)
-    kept = tuple(name for name in current if not (unblocked and name == DEPENDS_ON))
+    kept = tuple(name for name in current if not _dropped(name, to_list, unblocked))
     shipped = (SHIPPED,) if to_list == DONE and SHIPPED not in kept else ()
     return (*kept, *shipped)

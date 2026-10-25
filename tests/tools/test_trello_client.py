@@ -387,7 +387,7 @@ def test_move_to_a_lane_without_cover_clears_it_and_adds_no_sticker():
     )
     warning = delete_route(f"/cards/{CARD}/stickers/s1")
     run(client().move_with_reason(CARD, "Backlog", "Unblocked: back to the queue"))
-    assert body(routes["put"].calls[1].request) == {"cover": None}
+    assert body(routes["put"].calls[1].request) == {"cover": {"color": None}}
     assert warning.called and not routes["add_sticker"].called
 
 
@@ -395,7 +395,8 @@ def test_move_to_a_lane_without_cover_clears_it_and_adds_no_sticker():
 def test_move_still_happens_when_the_look_fails():
     mock_lists()
     routes = mock_look(CARD)
-    routes["put"].mock(side_effect=[httpx.Response(200, json={}), httpx.Response(503, text="down")])
+    down = httpx.Response(503, text="down")
+    routes["put"].mock(side_effect=[httpx.Response(200, json={}), down] * 2)
     comment = respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
         return_value=httpx.Response(200, json={"id": "a1"})
     )
@@ -406,6 +407,30 @@ def test_move_still_happens_when_the_look_fails():
     assert moved["look_applied"] is False
     assert "HTTP 503" in moved["detail"]
     assert "token" not in moved["detail"]
+    assert form(routes["add_sticker"].calls[0].request)["image"] == "rocketship"
+    shipped = run(client().move_with_reason(CARD, "Done", "Tests pass"))
+    assert shipped["list"] == "Done" and shipped["look_applied"] is False
+    assert "HTTP 503" in shipped["detail"]
+    assert form(routes["new_label"].calls[0].request)["name"] == "Shipped"
+    assert form(routes["add_label"].calls[0].request) == {"value": "lab-new"}
+    assert form(routes["add_sticker"].calls[1].request)["image"] == "check"
+
+
+@respx.mock
+def test_look_relabels_before_the_cover_and_joins_every_failure():
+    mock_lists()
+    routes = mock_look(CARD)
+    routes["put"].mock(side_effect=[httpx.Response(200, json={}), httpx.Response(503, text="a")])
+    routes["stickers"].mock(return_value=httpx.Response(502, text="b"))
+    respx.post(f"{API}/cards/{CARD}/actions/comments").mock(
+        return_value=httpx.Response(200, json={"id": "a1"})
+    )
+    moved = run(client().move_with_reason(CARD, "Done", "Tests pass"))
+    assert "HTTP 503" in moved["detail"] and "HTTP 502" in moved["detail"]
+    order = [call.request.url.path for call in respx.calls]
+    cover = max(n for n, call in enumerate(respx.calls) if call.request.method == "PUT")
+    assert order.index(f"/1/cards/{CARD}/idLabels") < cover
+    assert order.index(f"/1/cards/{CARD}/stickers") > cover
 
 
 @respx.mock
@@ -443,7 +468,30 @@ def test_create_sets_the_type_label():
     assert created["label"] == "Bug" and created["look_applied"] is True
     assert form(routes["add_label"].calls[0].request) == {"value": "lab-bug"}
     assert not routes["new_label"].called
-    assert body(routes["put"].calls[0].request) == {"cover": None}
+    assert body(routes["put"].calls[0].request) == {"cover": {"color": None}}
+
+
+@respx.mock
+def test_create_adds_fixture_beside_the_prefix_label():
+    mock_lists()
+    respx.post(f"{API}/cards").mock(
+        return_value=httpx.Response(200, json={"id": CARD, "shortUrl": "https://trello.com/c/c9"})
+    )
+    routes = mock_look(
+        CARD,
+        board_labels=[
+            {"id": "lab-bug", "name": "Bug", "color": "red"},
+            {"id": "lab-fix", "name": "Fixture", "color": "black"},
+        ],
+    )
+    created = run(client().create("Backlog", "Bug: times show in UTC [fixture]", "d"))
+    assert created["label"] == "Bug" and created["look_applied"] is True
+    added = [form(call.request) for call in routes["add_label"].calls]
+    assert added == [{"value": "lab-bug"}, {"value": "lab-fix"}]
+    fixture = run(client().create("Backlog", "Count the sessions [fixture]", "d"))
+    assert fixture["label"] == "Fixture"
+    assert routes["add_label"].call_count == 3
+    assert form(routes["add_label"].calls[2].request) == {"value": "lab-fix"}
 
 
 @respx.mock
@@ -555,6 +603,45 @@ def test_add_checklist_replaces_existing_items():
     assert [form(call.request) for call in item.calls] == [
         {"name": text, "checked": "false"} for text in items
     ]
+
+
+@respx.mock
+def test_add_checklist_writes_the_new_items_before_deleting_the_old():
+    mock_checklists()
+    delete_route("/checklists/cl-old")
+    respx.post(f"{API}/cards/{CARD}/checklists").mock(
+        return_value=httpx.Response(200, json={"id": "cl-new"})
+    )
+    respx.post(f"{API}/checklists/cl-new/checkItems").mock(
+        return_value=httpx.Response(200, json={"id": "i"})
+    )
+    run(client().add_checklist(CARD, ("Stars persist", "Works offline")))
+    writes = [
+        (call.request.method, call.request.url.path)
+        for call in respx.calls
+        if call.request.method != "GET"
+    ]
+    assert writes == [
+        ("POST", f"/1/cards/{CARD}/checklists"),
+        ("POST", "/1/checklists/cl-new/checkItems"),
+        ("POST", "/1/checklists/cl-new/checkItems"),
+        ("DELETE", "/1/checklists/cl-old"),
+    ]
+
+
+@respx.mock
+def test_add_checklist_keeps_the_old_criteria_when_a_write_fails():
+    mock_checklists()
+    old = delete_route("/checklists/cl-old")
+    respx.post(f"{API}/cards/{CARD}/checklists").mock(
+        return_value=httpx.Response(200, json={"id": "cl-new"})
+    )
+    respx.post(f"{API}/checklists/cl-new/checkItems").mock(
+        return_value=httpx.Response(500, text="oops")
+    )
+    with pytest.raises(ToolError, match="HTTP 500"):
+        run(client().add_checklist(CARD, ("Stars persist",)))
+    assert not old.called
 
 
 @respx.mock

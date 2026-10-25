@@ -15,7 +15,7 @@ def test_node_web_runs_on_the_node_image_within_the_laptop_budget():
     assert body["size"] == {"cpu": "1", "memory": "2Gi", "disk": "8Gi"}
 
 
-def test_node_web_reaches_npm_and_github_and_nothing_else():
+def test_node_web_reaches_npm_github_and_the_conference_site_and_nothing_else():
     hosts = environment_request(NODE_WEB)["egress_hosts"]
     assert hosts == [
         "registry.npmjs.org",
@@ -23,6 +23,7 @@ def test_node_web_reaches_npm_and_github_and_nothing_else():
         "api.github.com",
         "codeload.github.com",
         "objects.githubusercontent.com",
+        "sydney.platformcon.com",
     ]
 
 

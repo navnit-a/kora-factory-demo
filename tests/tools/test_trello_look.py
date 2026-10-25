@@ -74,3 +74,12 @@ def test_labels_after_move_adds_shipped_and_drops_depends_on():
     current = ("Story",)
     labels_after_move(current, "Done", "x")
     assert current == ("Story",)
+
+
+def test_labels_after_move_drops_idea_outside_ideas():
+    assert labels_after_move(("Idea", "Fixture"), "Backlog", "A story") == ("Fixture",)
+    assert labels_after_move(("Idea",), "Blocked", "No clear value") == ()
+    assert labels_after_move(("Idea", "Proposed via Telegram"), "Ideas", "") == (
+        "Idea",
+        "Proposed via Telegram",
+    )

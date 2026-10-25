@@ -49,6 +49,7 @@ def test_wait_for_run_times_out():
 def test_load_client_reads_token_and_env_url(tmp_path, monkeypatch):
     creds = tmp_path / "creds.json"
     creds.write_text('{"access_token": "abc", "refresh_token": "r"}')
+    creds.chmod(0o600)
     ca = tmp_path / "ca.pem"
     ca.write_text("x")
     monkeypatch.setenv("KORA_API_URL", BASE)

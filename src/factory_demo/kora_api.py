@@ -102,9 +102,17 @@ def default_ca_file() -> str | bool:
     return str(candidate) if candidate.exists() else True
 
 
+def read_credentials(path: str) -> dict:
+    file = Path(path)
+    stat = file.stat()
+    if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+        raise PermissionError(f"{path} must be owned by you and chmod 600; refusing to read it")
+    return json.loads(file.read_text())
+
+
 def load_client(
     credentials_path: str = DEFAULT_CREDENTIALS, base_url: str | None = None
 ) -> KoraClient:
-    credentials = json.loads(Path(credentials_path).read_text())
+    credentials = read_credentials(credentials_path)
     url = base_url or os.environ.get("KORA_API_URL") or DEFAULT_API_URL
     return KoraClient(url, credentials["access_token"], verify=default_ca_file())

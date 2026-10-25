@@ -36,7 +36,11 @@ First time, or after `make reset`:
 8. `uv run python scripts/create-environment.py` creates the `node-web` sandbox environment.
 9. `uv run python scripts/smoke.py` must end with `idle spend_usd=` above zero, and
    `uv run python scripts/smoke.py --budget-stop` must end with `budget_exhausted`.
-10. `scripts/platform-check.sh` must print only `ok` lines.
+10. `scripts/deploy-tools.sh` builds the tool-server image, pushes it to the cluster's registry, applies
+    the `factory-tools` Secret and the four servers, and waits for them. kora registers each as an
+    `MCPServer`; `kubectl get mcpservers -n kora-tenant-example` must show all four `Aggregated`.
+11. `scripts/platform-check.sh` must print only `ok` lines, including all nine tools listed through
+    kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
 Every later session: start Docker, `make up`, `make auth-refresh`, then `scripts/platform-check.sh`.
 
@@ -73,5 +77,12 @@ committed, pasted into a prompt, or shown on screen.
   (20 minutes for a person, 5 for a trigger). kora's run DELETE removes the run from history.
 - Budget changes take about 30 seconds to reach the gateway, and the call in flight when a limit is
   crossed still completes. A Haiku 5.5 run of a small task costs about $0.002.
+- Tool servers are reached only through kora's gateway: the `MCPServer` condition reads "tool-gateway
+  admitted to 2 pod(s), all other callers denied". The gateway's public MCP path is
+  `/v1/mcp/<server>` with the dev token; the catalog routes are internal to the cluster.
+- The Transport for NSW Trip Planner alerts filter takes a date (`filterDateValid=DD-MM-YYYY`), not a
+  flag. Only `lineInfo` alerts describe line disruptions; `tripMessage` alerts are about one train.
+- Overpass returns matches in id order, so the places tool fetches every candidate in the radius and
+  sorts by distance itself.
 - Foundry rejects some Claude Code requests with `thinking.adaptive.display`, because Claude Code asks
   for the `updates` display mode, a beta Foundry does not accept yet. Runs still finish.

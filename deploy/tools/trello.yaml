@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-trello
+  namespace: kora-tenant-example
+  labels:
+    app: tools-trello
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tools-trello
+  template:
+    metadata:
+      labels:
+        app: tools-trello
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: kora-registry:5001/factory-tools:latest
+          imagePullPolicy: Always
+          args: ["factory_tools.trello"]
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: factory-tools
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-trello
+  namespace: kora-tenant-example
+spec:
+  selector:
+    app: tools-trello
+  ports:
+    - name: http
+      appProtocol: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: runkora.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: trello
+  namespace: kora-tenant-example
+spec:
+  displayName: "Trello"
+  description: "The kora factory Trello board: list, read, move, comment, create and describe cards."
+  endpoint: http://tools-trello.kora-tenant-example.svc:8000/mcp
+  transport: streamable-http
+  reintrospectIntervalSeconds: 300
+  workload:
+    selector:
+      app: tools-trello

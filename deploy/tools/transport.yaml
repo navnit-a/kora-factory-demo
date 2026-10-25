@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-transport
+  namespace: kora-tenant-example
+  labels:
+    app: tools-transport
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tools-transport
+  template:
+    metadata:
+      labels:
+        app: tools-transport
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: kora-registry:5001/factory-tools:latest
+          imagePullPolicy: Always
+          args: ["factory_tools.transport"]
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: factory-tools
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-transport
+  namespace: kora-tenant-example
+spec:
+  selector:
+    app: tools-transport
+  ports:
+    - name: http
+      appProtocol: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: runkora.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: transport
+  namespace: kora-tenant-example
+spec:
+  displayName: "Sydney Transport"
+  description: "Current Sydney Trains disruptions from Transport for NSW."
+  endpoint: http://tools-transport.kora-tenant-example.svc:8000/mcp
+  transport: streamable-http
+  reintrospectIntervalSeconds: 300
+  workload:
+    selector:
+      app: tools-transport

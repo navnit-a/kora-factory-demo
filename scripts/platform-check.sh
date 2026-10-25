@@ -16,5 +16,6 @@ done
 kubectl get sandboximage kora-node -n kora-tenant-example >/dev/null 2>&1 && ok "sandbox image kora-node present" || bad "sandbox image kora-node missing"
 
 uv run python scripts/api-check.py || fail=1
+uv run python scripts/tools-check.py || fail=1
 
 exit $fail

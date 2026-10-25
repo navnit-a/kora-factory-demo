@@ -50,22 +50,30 @@ async def checklist_items(client: TrelloClient, card_id: str) -> tuple[tuple[str
     return tuple((item.get("name", ""), item.get("state", "")) for item in criteria)
 
 
+def _names(items: tuple[dict, ...]) -> str:
+    return "; ".join(f"'{item.get('name', '')}'" for item in items)
+
+
 def _match(items: tuple[dict, ...], text: str) -> dict | None:
     exact = next((item for item in items if item.get("name") == text), None)
     wanted = text.strip().casefold()
     if exact or not wanted:
         return exact
-    return next(
-        (item for item in items if item.get("name", "").casefold().startswith(wanted)), None
-    )
+    found = tuple(item for item in items if item.get("name", "").casefold().startswith(wanted))
+    if len(found) > 1:
+        raise ToolError(
+            f"{len(found)} acceptance criteria start with '{text}': {_names(found)}. "
+            "Give a longer text so only one matches."
+        )
+    return found[0] if found else None
 
 
 def _no_match(text: str, items: tuple[dict, ...]) -> ToolError:
     if not items:
         return ToolError(f"The card has no {CHECKLIST_NAME} checklist yet; {ADD_HINT}.")
-    names = "; ".join(f"'{item.get('name', '')}'" for item in items)
     return ToolError(
-        f"No acceptance criterion matches '{text}'. The card's {CHECKLIST_NAME} are: {names}. "
+        f"No acceptance criterion matches '{text}'. "
+        f"The card's {CHECKLIST_NAME} are: {_names(items)}. "
         "Use the exact text, or its first words."
     )
 

@@ -668,3 +668,32 @@ def test_a_trello_reply_without_an_id_is_an_error_not_a_blank_call():
 def test_malformed_board_labels_are_skipped():
     mock_look(CARD, board_labels=[{"name": "Bug"}, {"id": "s", "name": "Spike"}])
     assert run(client().board_labels()) == {"Spike": "s"}
+
+
+@respx.mock
+def test_check_item_refuses_an_ambiguous_prefix():
+    routes = mock_checklists()
+    items = [
+        {"id": "i1", "name": "Stars persist after a reload", "state": "incomplete"},
+        {"id": "i2", "name": "Stars show in the header", "state": "incomplete"},
+        {"id": "i3", "name": "Stars", "state": "incomplete"},
+    ]
+    routes["list"].mock(
+        return_value=httpx.Response(
+            200, json=[{"id": "cl", "name": "Acceptance criteria", "checkItems": items[:2]}]
+        )
+    )
+    with pytest.raises(ToolError) as caught:
+        run(client().check_item(CARD, "stars"))
+    message = str(caught.value)
+    assert "2 acceptance criteria start with 'stars'" in message
+    assert "'Stars persist after a reload'" in message and "'Stars show in the header'" in message
+    assert "longer text" in message
+    assert not routes["check"].called
+    routes["list"].mock(
+        return_value=httpx.Response(
+            200, json=[{"id": "cl", "name": "Acceptance criteria", "checkItems": items}]
+        )
+    )
+    assert run(client().check_item(CARD, "Stars"))["item"] == "Stars"
+    assert routes["check"].calls[0].request.url.path.endswith("/checkItem/i3")

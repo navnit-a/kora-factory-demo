@@ -217,23 +217,45 @@ def test_add_checklist_bounds_its_items():
     assert (schema["items"]["minLength"], schema["items"]["maxLength"]) == (3, 200)
 
 
+def sealed() -> respx.MockRouter:
+    return respx.mock(assert_all_mocked=True, assert_all_called=False)
+
+
+def test_the_sealed_mock_lets_no_request_leave_the_process():
+    with sealed(), pytest.raises(respx.models.AllMockedAssertionError):
+        httpx.get(f"{API}/cards/{CID}")
+
+
 @pytest.mark.parametrize(
-    "items",
+    ("items", "message"),
     [
-        ["one thing", "two things"],
-        ["a criterion"] * 9,
-        ["ok criterion", "no", "fine criterion"],
-        ["ok criterion", "x" * 201, "fine criterion"],
+        (["one thing", "two things"], "List should have at least 3 items"),
+        (["a criterion"] * 9, "List should have at most 8 items"),
+        (["ok criterion", "no", "fine criterion"], "String should have at least 3 characters"),
+        (
+            ["ok criterion", "x" * 201, "fine criterion"],
+            "String should have at most 200 characters",
+        ),
     ],
 )
-def test_add_checklist_rejects_items_out_of_bounds_before_any_call(items):
-    with pytest.raises(ToolError):
-        run(call("trello_add_checklist", card_id=CID, items=items))
+def test_add_checklist_rejects_items_out_of_bounds_before_any_call(items, message):
+    with sealed() as router:
+        card = router.get(f"{API}/cards/{CID}").mock(
+            return_value=httpx.Response(200, json={"id": CID, "idBoard": "board"})
+        )
+        with pytest.raises(ToolError, match=f"validation error(?s:.*){message}"):
+            run(call("trello_add_checklist", card_id=CID, items=items))
+    assert card.called is False
 
 
 def test_add_label_accepts_only_the_palette():
-    with pytest.raises(ToolError):
-        run(call("trello_add_label", card_id=CID, name="Urgent"))
+    with sealed() as router:
+        card = router.get(f"{API}/cards/{CID}").mock(
+            return_value=httpx.Response(200, json={"id": CID, "idBoard": "board", "labels": []})
+        )
+        with pytest.raises(ToolError, match="validation error(?s:.*)Input should be 'Idea'"):
+            run(call("trello_add_label", card_id=CID, name="Urgent"))
+    assert card.called is False
 
 
 @respx.mock

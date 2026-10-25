@@ -117,18 +117,18 @@ def test_manual_trigger_without_inputs_sends_empty_config():
     assert manual_trigger(spec, spec.manuals[0], "at-6")["manual_config"] == {"inputs": []}
 
 
-def test_trigger_patch_keeps_only_mutable_fields():
+def test_trigger_patch_leaves_the_schedule_alone():
     spec = by_slug("tester")
     request = schedule_trigger(spec, spec.schedules[0], "at-6", "quiet")
     patch = trigger_patch(request)
-    assert set(patch) == {
-        "name",
-        "prompt_template",
-        "schedule_config",
-        "max_parallel",
-        "dedupe_enabled",
-    }
+    assert set(patch) == {"name", "prompt_template", "max_parallel", "dedupe_enabled"}
     assert patch is not request
+
+
+def test_trigger_patch_keeps_manual_config():
+    spec = by_slug("tester")
+    patch = trigger_patch(manual_trigger(spec, spec.manuals[0], "at-6"))
+    assert patch["manual_config"] == {"inputs": []}
 
 
 def test_support_gets_read_only_github():

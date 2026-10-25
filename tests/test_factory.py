@@ -8,6 +8,7 @@ from factory_demo.factory import (
     factory_status,
     set_team_schedules,
 )
+from factory_demo.roster import ROSTER
 from tests.fake_kora import FakeKora
 
 NON_GITHUB = {"product-owner", "delivery-lead", "scrum-master", "sydney-trains", "lunch"}
@@ -56,6 +57,21 @@ def test_deploy_twice_updates_in_place_and_keeps_paused():
     later = kora.patches[patches_before:]
     assert all("enabled" not in patch for _, patch in later)
     assert by_name(kora)["Product owner: every 10 min"]["enabled"] is False
+
+
+def test_redeploy_keeps_the_cadence_of_existing_schedules():
+    kora = FakeKora()
+    deploy_factory(kora, "recording", include_github=True)
+    deploy_factory(kora, "quiet", include_github=True)
+    triggers = by_name(kora)
+    recording = {
+        f"{spec.name}: {schedule.name}": schedule.cron_recording
+        for spec in ROSTER
+        for schedule in spec.schedules
+    }
+    assert {name: triggers[name]["schedule_config"]["cron_expression"] for name in recording} == (
+        recording
+    )
 
 
 def test_deploy_refuses_when_an_agents_environment_is_missing():

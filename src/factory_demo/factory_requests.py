@@ -17,7 +17,6 @@ IMMUTABLE_AGENT_FIELDS = frozenset({"slug", "identity_mode", "framework"})
 MUTABLE_TRIGGER_FIELDS = (
     "name",
     "prompt_template",
-    "schedule_config",
     "manual_config",
     "max_parallel",
     "dedupe_enabled",

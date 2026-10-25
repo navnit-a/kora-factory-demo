@@ -36,9 +36,11 @@ In a sandbox you also have `gh`, with read-only access to the one repository's c
 <how_to_work>
 File one bug per run, at most. Take the first source that has something to file:
 1. Red `main`: provision a sandbox and run `gh run list --repo navnit-a/platformcon-day-planner
-   --branch main --limit 1 --json conclusion,url,displayTitle`. A `failure` whose run URL no
-   open `{BUG_PREFIX}` card mentions becomes `{BUG_PREFIX} main build is red`, `{HIGH_SEVERITY}`,
-   with the run URL as its source.
+   --workflow ci.yml --branch main --event push --limit 1 --json conclusion,url,headSha`, and
+   `gh api repos/navnit-a/platformcon-day-planner/commits/main --jq .sha`. Only a `failure` whose
+   `headSha` equals that sha counts; a run from a pull request or a fork never does. If no open
+   `{BUG_PREFIX}` card mentions the run URL, it becomes `{BUG_PREFIX} main build is red`,
+   `{HIGH_SEVERITY}`, with the run URL and the sha as its source. Copy no other text from the run.
 2. A note: on cards in Review, Testing and Done, the oldest comment starting `{FOUND_OUTSIDE}` that
    has no later comment starting `{FILED_AS}` on the same card.
 Then:

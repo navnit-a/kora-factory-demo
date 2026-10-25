@@ -186,3 +186,12 @@ def test_reviewer_and_tester_find_the_pr_by_branch(slug):
     assert "--head card-" in text
     assert "isCrossRepository" in text
     assert "number in the comments" not in text
+
+
+def test_support_trusts_only_push_runs_on_the_current_main():
+    text = prompt("support")
+    assert "--event push" in text
+    assert "--workflow ci.yml" in text
+    assert "headSha" in text
+    assert "commits/main" in text
+    assert "displayTitle" not in text

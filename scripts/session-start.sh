@@ -11,3 +11,5 @@ echo "caffeinate armed for this shell (pid $$)"
 (cd "$KORA_DIR" && make auth-refresh) || (cd "$KORA_DIR" && make auth)
 
 scripts/platform-check.sh
+uv run python scripts/factory.py status
+echo "resume with: uv run python scripts/factory.py resume --cadence recording"

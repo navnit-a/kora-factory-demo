@@ -40,7 +40,16 @@ First time, or after `make reset`:
 11. `scripts/platform-check.sh` must print only `ok` lines, including all nine tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
-Every later session: start Docker, `make up`, `make auth-refresh`, then `scripts/platform-check.sh`.
+12. `uv run python scripts/deploy-factory.py` creates or updates the agents and their triggers from
+    `src/factory_demo/roster.py`, team schedules paused, and sets the tenant cap to 60 USD a week.
+    The GitHub agents (developer, reviewer, tester, support) are added with `--with-github` once the
+    GitHub App connection exists. Running it again updates in place and keeps paused schedules paused.
+
+Every later session: `scripts/session-start.sh` (Docker check, `make up`, sign-in, platform check,
+factory status), then `uv run python scripts/factory.py resume --cadence recording` to start the
+team. `scripts/session-stop.sh` pauses every team schedule and fails loudly if any is still running;
+add `--down` to stop the cluster. The trains and lunch schedules stay on; every agent also has a
+"run now" trigger in the console, and the delivery lead a "stand-up now".
 
 Dashboard: https://local.runkora.io, sign in as `dev@local.runkora.io`. API: https://api.local.runkora.io.
 The local TLS certificate comes from mkcert; the API client verifies against `$(mkcert -CAROOT)/rootCA.pem`

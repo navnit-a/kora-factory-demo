@@ -44,7 +44,8 @@ First time, or after `make reset`:
     would dress and checklists it would add. When the plan looks right, run it again without
     `--dry-run`. It names the labels and gives every open card its lane's cover and sticker, its
     labels and, where the description has criteria, its Acceptance criteria checklist. A second run
-    touches only cards that have drifted.
+    touches only cards that have drifted. If it stops on a Trello rate limit, run it again; it is
+    idempotent.
 12. `scripts/platform-check.sh` must print only `ok` lines, including all thirteen tools listed through
     kora's gateway at `https://api.local.runkora.io/v1/mcp/<server>`.
 
@@ -128,9 +129,9 @@ The Trello tool server dresses a card on every move and create, so the board rea
 Labels say what a card is and what it needs. Idea (sky) marks a card in Ideas; Story (blue), Bug
 (red) and Spike (purple) are the type once it reaches Backlog. High severity (red) goes with the Bug
 label and a star sticker for urgent work. Depends on (orange) means a named prerequisite is not Done
-yet. Shipped (green) is added when a card reaches Done. The product owner adds Proposed via
-Telegram (pink) to an idea that came through the idea door, and Fixture (black) marks a card an
-evaluation made. The product owner writes the criteria into an Acceptance criteria checklist and the
+yet. Shipped (green) is added when a card reaches Done. Proposed via Telegram (pink) marks an idea
+that came through the idea door; the idea door adds it when the card is created. Fixture (black)
+marks a card an evaluation made. The product owner writes the criteria into an Acceptance criteria checklist and the
 tester ticks them.
 
 ## Working agreements

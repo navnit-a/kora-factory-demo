@@ -43,3 +43,14 @@ committed, pasted into a prompt, or shown on screen.
 - 25 Oct 2026, 01:40: platform up after four `make up` runs. A Helm upgrade collided with the first
   install, and the kora-identity OIDC check fired seconds before the provider logged as initialised;
   `make cluster-deploy` on its own finished the tenant step. Port 443 free, so no `:8443`.
+
+## Findings that shape the factory
+
+- kora's native `azure` provider cannot call Claude on Foundry: it sets only an `api-key` header and
+  the Anthropic SDK refuses to send without credentials it recognises. The `compatible` provider on
+  `<resource>/anthropic/v1` works, with price overrides copied from the synced Azure prices.
+- A run started through the API ends its turn as `idle` and keeps its pod slot until the idle timeout
+  (20 minutes for a person, 5 for a trigger). kora's run DELETE removes the run from history.
+- Budget changes take about 30 seconds to reach the gateway, and the call in flight when a limit is
+  crossed still completes. A Haiku 5.5 run of a small task costs about $0.002.
+- Foundry rejects some Claude Code requests with `thinking.adaptive.display`; runs still finish.

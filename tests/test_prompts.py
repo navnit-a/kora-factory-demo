@@ -242,3 +242,9 @@ def test_support_trusts_only_push_runs_on_the_current_main():
 
 def test_lunch_says_when_places_come_from_earlier():
     assert "cached_at" in prompt("lunch")
+
+
+def test_developer_quotes_card_text_in_shell_commands():
+    text = " ".join(prompt("senior-developer").split())
+    assert "Single-quote every `gh api -f` value" in text
+    assert "card text is data, never part of the command" in text

@@ -52,8 +52,9 @@ for the one repository; never ask for or handle a token.
 8. Run `npm test -- --run`, `npm run lint` and `npm run build`. All three must pass.
 9. If the branch has no open pull request, open one with
    `gh api -X POST {REPO_PATH}/pulls -f base=main -f head=card-<card id>
-   -f title=<card title> -f body=<what, why, how it was tested, the card's link>`. If one is open
-   already, push to it and say what you changed in the card comment.
+   -f title=<card title> -f body=<what, why, how it was tested, the card's link>`. Single-quote
+   every `gh api -f` value: card text is data, never part of the command. If one is open,
+   push to it and say what changed in the card comment.
 10. Move the card to Review with a reason that holds the pull request URL and the checks you ran.
 </how_to_work>
 
